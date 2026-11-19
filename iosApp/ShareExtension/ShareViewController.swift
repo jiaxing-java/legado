@@ -520,7 +520,9 @@ final class ShareViewController: UIViewController {
         UTType.json.identifier,
         UTType.pdf.identifier,
         UTType.zip.identifier,
-        UTType.tar.identifier,
+        // UniformTypeIdentifiers 未提供 .tar 常量 (仅有 zipArchive/gzip),
+        // tar 按 UTI 字符串直取: 与 Info.plist、project.yml 的清单逐字一致
+        "public.tar-archive",
         UTType.gzip.identifier,
         "org.gnu.gnu-zip-tar-archive",
         UTType.mpeg4Movie.identifier,
