@@ -66,12 +66,21 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 
 /**
+ * 导航栏方位开关。
+ *
+ * 上游实现按窗口最短边 ≥ [DesignTokens.wideScreenMinWidth](600dp) 在平板/桌面切左侧竖排
+ * [MainNavRail]; 本分支按使用习惯固定用底部 [MainBottomBar] (iPad 上 72dp 纯图标侧栏辨识度低,
+ * 且占掉左侧操作区)。改回 true 即恢复上游的响应式行为, [MainNavRail] 实现保持完整。
+ */
+private const val NAV_RAIL_ON_WIDE_SCREEN = false
+
+/**
  * 主界面(附录 H): HorizontalPager 四 tab(等价 ViewPager offscreenPageLimit=3 全驻留 + 横滑)
  * + 自绘导航栏。四 tab 均为纯 composable, 由调用方经 lambda 注入; pager 跳转/重选经回调
  * 回传给宿主(供返回键/reselect/recreate 调用)。
  *
- * 导航栏按窗口宽度切换方位: ≥[DesignTokens.wideScreenMinWidth] 用左侧 [MainNavRail], 否则用底部
- * [MainBottomBar]; 两者视觉/配置项完全一致, 只差排列方向。
+ * 导航栏方位由 [NAV_RAIL_ON_WIDE_SCREEN] 决定: true 时 ≥[DesignTokens.wideScreenMinWidth] 用
+ * 左侧 [MainNavRail], 否则用底部 [MainBottomBar]; 两者视觉/配置项完全一致, 只差排列方向。
  *
  * @param visibleTags 可见 tag 列表(BottomNavTag 字符串, 顺序含配置校验)
  * @param initialPage 首页落点(等价旧 upHomePage, 仅初始组合时消费)
@@ -137,19 +146,22 @@ fun MainScreen(
     // 状态栏回避由各 Tab 顶栏自行处理 (HomeTopBar/BookshelfTopBar/ExploreTitleBar/MyTabTitleBar
     // 均带背景 + statusBarsPadding), 容器层不再重复 padding, 否则顶栏会双倍回避状态栏。
 
-    // 窗口尺寸决定导航栏方位: 最短边(shortestSide) ≥ wideScreenMinWidth 的宽窗口
+    // 窗口尺寸决定导航栏方位: 默认关闭左侧竖排, 固定用底部栏 (见 NAV_RAIL_ON_WIDE_SCREEN)。
+    // 开关为 true 时走上游逻辑: 最短边(shortestSide) ≥ wideScreenMinWidth 的宽窗口
     // (平板横屏/桌面)走左侧竖排, 手机(横竖屏最短边均 < 600dp)维持底部底栏。
-    // 与 Material windowSizeClass Compact/Medium 分界同源(最短边判定),
-    // 修复手机横屏宽度 ≥600dp 误触发 NavRail 的问题。
     // derivedStateOf: 拖动窗口时 containerSize 每帧变化, 只在越过阈值时才重组
     val windowInfo = LocalWindowInfo.current
     val density = LocalDensity.current
     val useNavRail by remember(windowInfo, density) {
         derivedStateOf {
-            val size = windowInfo.containerSize
-            val wDp = with(density) { size.width.toDp() }
-            val hDp = with(density) { size.height.toDp() }
-            minOf(wDp, hDp) >= DesignTokens.wideScreenMinWidth
+            if (!NAV_RAIL_ON_WIDE_SCREEN) {
+                false
+            } else {
+                val size = windowInfo.containerSize
+                val wDp = with(density) { size.width.toDp() }
+                val hDp = with(density) { size.height.toDp() }
+                minOf(wDp, hDp) >= DesignTokens.wideScreenMinWidth
+            }
         }
     }
 
