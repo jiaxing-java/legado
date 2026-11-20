@@ -1,24 +1,30 @@
 [versions]
 # ===== 构建工具链 =====
 agp = "9.4.1"
-kotlin = "2.3.20"
+# 本分支对齐 MIUIX（MD3 皮肤底座）基线: Miuix 0.9.5 用 Kotlin 2.4.21 + CMP 1.12.2 编译,
+# 其 iosArm64 klib 为 2.4 ABI, 2.3.20 消费方无法链接。上游注释中的「解锁条件」即此升级。
+kotlin = "2.4.21"
 # KSP2 与 Kotlin 版本解耦; 2.2.21-2.0.4 的 KSP1 在 KMP expect/actual 上会抛
 # "Unexpected symbol type null", 必须用 2.3.x 的 KSP2。
+# 2026-11-20 实测: Kotlin 升至 2.4.21 后 KSP 2.3.11 仍正常, :data 与 :modules:quickjs 的
+# kspKotlinJvm 均通过, 无需跟随 Kotlin 升到 2.4.x。
 ksp = "2.3.11"
 
 # ===== Compose Multiplatform (Android/桌面共用基线) =====
-cmp = "1.11.1"
+cmp = "1.12.2"
 # 官方 CMP 版本 (与 cmp 非鸿蒙值同源): 鸿蒙模式 settings 把 cmp 切到 CPF fork (无 jvm 变体),
 # 而引用 compose runtime 注解的 commonMain 代码 (:data AnimeFilterList 的 @Stable) 需要
 # android/jvm 变体齐全的官方构件; ohos 配置由 OhosTargetConventionPlugin 替换为 fork 版
-composeMultiplatform-jvm = "1.11.1"
+composeMultiplatform-jvm = "1.12.2"
 # 0.41.0 对 CMP 1.10 编译 (Kotlin 2.3.21, iosArm64 klib abi 2.3.0), 与本项目工具链兼容。
 # 2026-09-19 实测 0.44.0/0.45.0: 其自身 klib 已恢复 Kotlin 2.3 可消费, 但 0.43+ 的
 # markdown-renderer-coil3 强制 coil3 >= 3.5.0 (runtime 依赖), 而 coil 3.5.0/3.6.0 的
 # iosArm64 klib 均为 Kotlin 2.4.10 编译 (abi 2.4.0, KLIB resolver 拒载), coil 3.6.0 还会
 # 拉入 CMP foundation 1.12.0 触发 plugin 版本不匹配警告。
-# 解锁条件: 项目迁移 Kotlin 2.4.x 工具链 (连带 CMP 1.12 / KSP 2.4; 注意 ohos fork 模式
-# 钉在 Kotlin 2.2.21-0.5.0, 需 fork 侧同步跟进)。到时直接上 0.45.0 (含 0.43/0.44 全部修复)。
+# 解锁条件: 项目迁移 Kotlin 2.4.x 工具链 (连带 CMP 1.12)。原注释要求的 KSP 2.4 经 2026-11-20
+# 实测不需要 (见上)。ohos fork 钉在 Kotlin 2.2.21-0.5.0 的限制随「本分支不维护 ohos」一并解除。
+# 已解锁但本次未升: 升级 markdown 会连带抬 coil3 到 3.5+, 属独立改动, 与皮肤移植分开做。
+# 升级时可上 0.45.0 (含 0.43/0.44 全部修复)。
 multiplatformMarkdown = "0.41.0"
 # coil 3.4.0 = iOS klib 兼容 Kotlin 2.3.20 的最高版本 (3.5.0+ 的 iOS klib 为 Kotlin 2.4 ABI)。
 # coil 传递的 skiko (0.9.22.2) 远旧于 CMP 1.11.1 的 skiko (0.144.6); skiko 版本归 CMP 拥有,
