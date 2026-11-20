@@ -179,6 +179,19 @@ kotlin {
                 // OhosTargetConventionPlugin 在 ohos 配置上替换为 :modules:reorderable-ohos
                 // (本地用 CPF 工具链重编同一份源码); 其余三端解析上游官方变体。
                 api(libs.reorderable)
+                // Miuix (MD3 皮肤底座): 源码来自 modules/miuix 子模块 (settings 里 includeBuild),
+                // 与上面 compose 同一条工具链 (Kotlin 2.4.21 + CMP 1.12.2)。
+                // 声明在 sharedUiMain 而非 commonMain: Miuix 的 API 面全是 Compose 类型。
+                // ui/glass/blur 走 api, 供上层组件层直接引用其类型; preference/icons 仅内部使用。
+                api(libs.miuix.core)
+                api(libs.miuix.ui)
+                api(libs.miuix.glass)
+                api(libs.miuix.blur)
+                implementation(libs.miuix.preference)
+                implementation(libs.miuix.icons)
+                // 皮肤实际引用到 material/window (MD3 侧 import 计数: material 9 处、window 3 处)
+                implementation(libs.miuix.material)
+                implementation(libs.miuix.window)
                 // JSON 树形展示 (vendored, 含长按取 JSONPath)。声明在本源集: JsonTree 的公开签名
                 // 引用 Compose 类型 (Modifier/PaddingValues/TextStyle 等), commonMain 无 Compose 依赖。
                 implementation(project(":modules:treeview"))

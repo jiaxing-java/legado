@@ -12,6 +12,10 @@ ksp = "2.3.11"
 
 # ===== Compose Multiplatform (Android/桌面共用基线) =====
 cmp = "1.12.2"
+# Miuix 坐标版本。实际代码来自 modules/miuix 子模块 (settings.gradle.kts 里 includeBuild),
+# 复合构建按 group:name 做依赖替换, 因此这里的版本号只影响坐标字面量, 不影响编译产物。
+# 版本值对齐子模块的 BuildConfig.LIBRARY_VERSION (0.9.5)。
+miuix = "0.9.5"
 # 官方 CMP 版本 (与 cmp 非鸿蒙值同源): 鸿蒙模式 settings 把 cmp 切到 CPF fork (无 jvm 变体),
 # 而引用 compose runtime 注解的 commonMain 代码 (:data AnimeFilterList 的 @Stable) 需要
 # android/jvm 变体齐全的官方构件; ohos 配置由 OhosTargetConventionPlugin 替换为 fork 版
@@ -170,6 +174,17 @@ compose-lifecycle-runtime-multiplatform = { module = "org.jetbrains.androidx.lif
 multiplatformMarkdown = { module = "com.mikepenz:multiplatform-markdown-renderer", version.ref = "multiplatformMarkdown" }
 multiplatformMarkdown-coil3 = { module = "com.mikepenz:multiplatform-markdown-renderer-coil3", version.ref = "multiplatformMarkdown" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
+
+# ===== Miuix (MD3 皮肤底座, vendored 源码复合构建) =====
+miuix-core = { module = "top.yukonga.miuix.kmp:miuix-core", version.ref = "miuix" }
+miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui", version.ref = "miuix" }
+miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference", version.ref = "miuix" }
+miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur", version.ref = "miuix" }
+miuix-glass = { module = "top.yukonga.miuix.kmp:miuix-glass", version.ref = "miuix" }
+miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons", version.ref = "miuix" }
+miuix-material = { module = "top.yukonga.miuix.kmp:miuix-material", version.ref = "miuix" }
+miuix-window = { module = "top.yukonga.miuix.kmp:miuix-window", version.ref = "miuix" }
+miuix-squircle = { module = "top.yukonga.miuix.kmp:miuix-squircle", version.ref = "miuix" }
 
 # ===== 桌面视频 (mediamp-mpv, KMP 自动选 desktop 变体) =====
 mediamp-mpv = { module = "org.openani.mediamp:mediamp-mpv", version.ref = "mediamp" }

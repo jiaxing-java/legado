@@ -87,3 +87,15 @@ val enableIosTarget = providers.gradleProperty("enableIosTarget").orNull?.toBool
 if (enableIosTarget || enableOhosTarget) {
     include(":modules:charset-native")
 }
+
+// ── Miuix (Compose Multiplatform UI 底座, MD3 皮肤的基础) ────────────────────────────
+// 用 vendored 源码走复合构建, 而不是 Maven Central 的二进制包, 两个原因:
+//   1) Maven Central 的 0.9.5-beta02 声明依赖 compose-foundation 1.13.0-rc01, 与本工程
+//      钉住的 CMP 1.12.2 混用会让 foundation 与 ui/runtime 落到不同版本 (半升级);
+//      fork 源码分支的版本目录就是 Kotlin 2.4.21 + CMP 1.12.2, 与本工程同一条线。
+//   2) 皮肤需要的 GlassTabRow 采样开关只存在于 fork 分支 legado/glass-tab-sampling。
+// 代价: miuix 的 settings 用了 Gradle 9.9 才有的 ENHANCED_GRAPH_ORDERING, 故 wrapper 同步升到 9.9.1。
+if (!file("modules/miuix/settings.gradle.kts").isFile) {
+    error("Miuix 子模块未初始化, 请先执行: git submodule update --init modules/miuix")
+}
+includeBuild("modules/miuix")

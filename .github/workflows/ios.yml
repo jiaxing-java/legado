@@ -44,6 +44,8 @@ jobs:
           # syncIosVersion 用 git rev-list HEAD --count 算 versionCode,
           # shallow 下恒为 1 (与 test.yml 同款取版本方式, 两边必须一致)
           fetch-depth: 0
+          # modules/miuix 是复合构建的一环, 缺了 settings.gradle.kts 会直接 error
+          submodules: recursive
 
       - name: Set version
         id: ver
