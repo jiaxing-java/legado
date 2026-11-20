@@ -463,7 +463,7 @@ class AudioPlayManager(
                         postEvent(EventBus.AUDIO_STATE, Status.STOP)
                     } else {
                         // 直链回写 + 在架书 PATCH 落库 (实现已收敛至 updateResourceUrl, 音视频共用)
-                        chapter.updateResourceUrl(content, AudioPlayShared.inBookshelf)
+                        updateResourceUrl(chapter, content, AudioPlayShared.inBookshelf)
                         contentLoadFinish(chapter, content)
                         // 本环到此结束: 起播环节若已领走加载态, 这一收位自然落空
                         endLoading(loading)

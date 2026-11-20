@@ -94,7 +94,7 @@ class ResourceUrlPreloader(private val scope: CoroutineScope) {
                     if (content.isEmpty()) return@runCatching
                     currentCoroutineContext().ensureActive()
                     // 直链回写 + 在架书 PATCH 落库 (与音视频播放侧共用 updateResourceUrl)
-                    chapter.updateResourceUrl(content, inBookshelf)
+                    updateResourceUrl(chapter, content, inBookshelf)
                 }.onFailure {
                     // evalJS 的 "JS执行出错" RuntimeException 包装会吞掉 CancellationException 身份,
                     // 仅靠类型判断拦不住被换壳的取消: 补查协程状态, 已取消的轮次按取消路径

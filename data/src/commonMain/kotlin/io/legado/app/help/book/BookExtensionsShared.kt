@@ -34,6 +34,15 @@ import kotlin.math.min
  *
  * 跨模块同包名同签名扩展自动合并, 消费方 import 零改动。
  * 注意: 同包名同签名扩展函数不允许在两个模块同时定义, 需从 app 端删除已下沉的扩展。
+ *
+ * ⚠️ 本文件内的 suspend 扩展函数, 接收者不能是带"注解数组"的实体类 (Book / BookChapter / AppDatabase)。
+ * 原因: Kotlin 2.4.x 的 K/N backend 在 NativeSuspendFunctionsLowering 中会把 suspend 扩展函数接收者
+ * 类的注解转成 descriptor (isRestrictsSuspensionReceiver), 而 IrBasedDescriptors.toConstantValue
+ * 只认 IrAnnotation (2.4 新增的 IrConstructorCall 子类), 不认普通注解实例 IrConstructorCallImpl;
+ * @Entity(indices = [Index(...)]) 这类"注解数组"在转换时抛
+ * "Internal error in file lowering: IrConstructorCallImpl ... is not expected" 让 linkReleaseFramework 失败
+ * (2.3.x 该处判断是 is IrConstructorCall, 故旧版本不炸)。
+ * 规避: 接收者下沉到无注解的 BaseBook, 函数体内取 Book 视图; 或改为普通参数 (见 updateResourceUrl)。
  */
 
 fun Book.getFolderNameNoCache(): String {
@@ -189,27 +198,28 @@ fun BaseBook.primaryStr(): String {
  *
  * @return null = 下架成功 (书已从书架删除); true = 上架成功; false = 操作失败
  */
-suspend fun Book.toggleBookshelfCore(
+suspend fun BaseBook.toggleBookshelfCore(
     inBookshelf: Boolean,
     chapters: List<BookChapter>? = null,
 ): Boolean? {
+    val book = this as Book
     val appDb = AppDbProviders.get()
     return if (inBookshelf) {
-        appDb.bookChapterDao.delByBook(bookUrl)
-        appDb.bookDao.delete(this)
+        appDb.bookChapterDao.delByBook(book.bookUrl)
+        appDb.bookDao.delete(book)
         null
     } else {
-        if (order == 0) order = appDb.bookDao.minOrder() - 1
-        appDb.bookDao.getBook(name, author)?.let {
-            durChapterIndex = it.durChapterIndex
-            durChapterPos = it.durChapterPos
-            durChapterTitle = it.durChapterTitle
+        if (book.order == 0) book.order = appDb.bookDao.minOrder() - 1
+        appDb.bookDao.getBook(book.name, book.author)?.let {
+            book.durChapterIndex = it.durChapterIndex
+            book.durChapterPos = it.durChapterPos
+            book.durChapterTitle = it.durChapterTitle
         }
-        removeType(BookType.notShelf)
-        if (appDb.bookDao.has(bookUrl)) appDb.bookDao.update(this)
-        else appDb.bookDao.insert(this)
+        book.removeType(BookType.notShelf)
+        if (appDb.bookDao.has(book.bookUrl)) appDb.bookDao.update(book)
+        else appDb.bookDao.insert(book)
         chapters?.takeIf { it.isNotEmpty() }?.let {
-            appDb.bookChapterDao.delByBook(bookUrl)
+            appDb.bookChapterDao.delByBook(book.bookUrl)
             appDb.bookChapterDao.insert(*it.toTypedArray())
         }
         true
@@ -225,15 +235,16 @@ suspend fun Book.toggleBookshelfCore(
  *
  * 本地书源文件删不掉时抛 [LocalBookSourceFileDeleteException], 供调用方如实提示。
  */
-suspend fun Book.delBookCore(deleteOriginal: Boolean = false) {
+suspend fun BaseBook.delBookCore(deleteOriginal: Boolean = false) {
+    val book = this as Book
     toggleBookshelfCore(inBookshelf = true)
     // 对照 Book.delete(): 删库后内存对象要标记回临时书
-    addType(BookType.notShelf)
-    if (!isLocal) return
+    book.addType(BookType.notShelf)
+    if (!book.isLocal) return
     // 库里的记录已删: 路径记忆只关缓存, 不碰文件 (与书架删除同一口径)
-    LocalBookLocators.get().removeLocalPathCache(this)
+    LocalBookLocators.get().removeLocalPathCache(book)
     try {
-        FileBook.deleteBook(this, deleteOriginal)
+        FileBook.deleteBook(book, deleteOriginal)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Throwable) {
@@ -254,17 +265,18 @@ suspend fun Book.delBookCore(deleteOriginal: Boolean = false) {
  * @param inBookshelf 是否在书架中 (默认通过 `!isNotShelf` 判断)
  * @return 迁移并落库后的新书实体
  */
-suspend fun Book.changeSourceTo(
+suspend fun BaseBook.changeSourceTo(
     newBook: Book,
     toc: List<BookChapter>,
     inBookshelf: Boolean = !isNotShelf,
 ): Book {
-    migrateTo(newBook, toc)
+    val book = this as Book
+    book.migrateTo(newBook, toc)
     if (inBookshelf) {
         newBook.removeType(BookType.updateError)
         withContext(IoDispatcher) {
             val appDb = AppDbProviders.get()
-            appDb.bookDao.delete(this@changeSourceTo)
+            appDb.bookDao.delete(book)
             appDb.bookDao.insert(newBook)
             appDb.bookChapterDao.insert(*toc.toTypedArray())
         }

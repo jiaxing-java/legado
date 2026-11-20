@@ -488,7 +488,7 @@ class VideoPlayViewModelShared(
                     }
                     // 直链回写 + 在架书 PATCH 落库 (实现已收敛至 updateResourceUrl, 音视频共用)
                     if (!book.isLocal) {
-                        chapter.updateResourceUrl(content, inBookshelf = !book.isNotShelf)
+                        updateResourceUrl(chapter, content, inBookshelf = !book.isNotShelf)
                     }
                     // 解析视频源 (复用同包工具函数)。isCurrentJob 守卫与 finally 同口径:
                     // 本轮已被切章替换/被加载中切档取消时不得再写 _videoUrl/_resolutions,

@@ -1,5 +1,6 @@
 package io.legado.app.data
 
+import androidx.room3.RoomDatabase
 import androidx.room3.immediateTransaction
 import androidx.room3.useWriterConnection
 import io.legado.app.data.dao.BookChapterDao
@@ -121,10 +122,14 @@ interface AppDbAccessor {
  * useWriterConnection 把写连接放进协程上下文 (ConnectionElement), [block] 内的 suspend DAO
  * 复用同一连接加入事务; immediateTransaction 对应 BEGIN IMMEDIATE, 抛异常自动回滚。
  *
+ * 接收者写 [RoomDatabase] (无注解) 而非 AppDatabase: AppDatabase 上的
+ * `@Database(autoMigrations = [...])` 是"注解数组", Kotlin 2.4.x K/N 链接期会 ICE,
+ * 详见 BookExtensionsShared.kt 顶部说明。useWriterConnection 本就是 RoomDatabase 的扩展, 函数体无需改动。
+ *
  * app (Android) 端的同款两行在 `io.legado.app.model.webBook.WebBookProvidersImpl.runInTransactionSuspending`
  * (app 模块不在本文件域内, 未改为复用本函数)。
  */
-suspend fun <R> AppDatabase.runInImmediateTransaction(block: suspend () -> R): R =
+suspend fun <R> RoomDatabase.runInImmediateTransaction(block: suspend () -> R): R =
     useWriterConnection { transactor ->
         transactor.immediateTransaction { block() }
     }
@@ -133,7 +138,7 @@ suspend fun <R> AppDatabase.runInImmediateTransaction(block: suspend () -> R): R
  * 事务成功返回后, 仍在 useWriterConnection 块内发布已提交结果 (END 已同步执行成功);
  * 失败/回滚不会调用 [onCommitted], 也不在 transaction block 内提前发布。
  */
-suspend fun <R> AppDatabase.runInImmediateTransaction(
+suspend fun <R> RoomDatabase.runInImmediateTransaction(
     onCommitted: () -> Unit,
     block: suspend () -> R,
 ): R = useWriterConnection { transactor ->

@@ -37,14 +37,21 @@ suspend fun resolveChapter(
  *
  * 只 PATCH resourceUrl 列而非整行 update: 整行会冲掉并发写入的其他章节字段。
  *
+ * 章节改由参数传入而非扩展接收者: BookChapter 上的 @Entity(foreignKeys = [...]) 是"注解数组",
+ * suspend 扩展函数会让 Kotlin 2.4.x 的 K/N 链接期 ICE (见 BookExtensionsShared.kt 顶部说明)。
+ *
  * @param inBookshelf 在架书才落库 (非在架书目录不落库, 写库无处可留)
  * @return true = 本次发生了变化
  */
-suspend fun BookChapter.updateResourceUrl(content: String, inBookshelf: Boolean): Boolean {
-    if (resourceUrl == content) return false
-    resourceUrl = content
+suspend fun updateResourceUrl(
+    chapter: BookChapter,
+    content: String,
+    inBookshelf: Boolean,
+): Boolean {
+    if (chapter.resourceUrl == content) return false
+    chapter.resourceUrl = content
     if (inBookshelf) {
-        AppDbProviders.get().bookChapterDao.upResourceUrl(bookUrl, url, content)
+        AppDbProviders.get().bookChapterDao.upResourceUrl(chapter.bookUrl, chapter.url, content)
     }
     return true
 }
