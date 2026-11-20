@@ -7,13 +7,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
@@ -50,6 +47,7 @@ import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,14 +55,19 @@ import io.legado.app.help.config.PreferenceProvider
 import io.legado.app.help.config.PreferenceProviders
 import io.legado.app.ui.compose.component.AlertButton
 import io.legado.app.ui.compose.component.AppAlertDialog
-import io.legado.app.ui.compose.component.AppSwitch
 import io.legado.app.ui.compose.component.listItemFocus
 import io.legado.app.ui.compose.component.AppUnderlineTextField
-import io.legado.app.ui.compose.platform.rememberColor
 import io.legado.app.ui.compose.platform.rememberNavigationBarPaddingValues
 import io.legado.app.ui.compose.theme.AppTheme
 import io.legado.app.ui.compose.theme.AppTheme.DesignTokens
+import io.legado.app.ui.compose.theme.ProvideMiuixTheme
 import io.legado.app.utils.ColorUtils
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Switch as MiuixSwitch
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import legado.ui.generated.resources.Res
 import legado.ui.generated.resources.cancel
 import legado.ui.generated.resources.ok
@@ -106,6 +109,21 @@ private class GridPreferenceScope(private val scope: LazyGridScope) : Preference
 }
 
 /**
+ * 收集型作用域: 不发射 Lazy item, 只把每个设置项记进 [items], 供 [preferenceCard]
+ * 在**一块卡片内部**按顺序渲染。
+ *
+ * 这里只记录 lambda 而不执行 —— 设置项的 composable 体 (remember/状态读取) 必须在
+ * 卡片渲染时执行, 否则 remember 会挂到错误的组合位置上。
+ */
+private class ColumnPreferenceScope : PreferenceScope {
+    val items = mutableListOf<@Composable () -> Unit>()
+
+    override fun preferenceItem(fullLine: Boolean, content: @Composable () -> Unit) {
+        items += content
+    }
+}
+
+/**
  * 设置页容器，透明背景（露出 Activity 主题背景/壁纸），底部避让导航栏。
  *
  * @param columns 非空 = 网格容器 (宽屏按列数分列, 列数入口见 rememberResponsiveColumns); 空 = 单列列表。
@@ -121,35 +139,82 @@ fun PreferenceScreen(
     columns: GridCells? = null,
     content: PreferenceScope.() -> Unit,
 ) {
-    if (columns == null) {
-        LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            state = listState,
-            contentPadding = contentPadding,
-        ) {
-            ListPreferenceScope(this).content()
-        }
-    } else {
-        LazyVerticalGrid(
-            columns = columns,
-            modifier = modifier.fillMaxSize(),
-            contentPadding = contentPadding,
-        ) {
-            GridPreferenceScope(this).content()
+    // 试点: 设置页整体切到 MD3 皮肤的令牌层 (miuix)。种子色取自现有主题强调色,
+    // 因此用户自定义主题色依然生效, 只是色板由 materialkolor 按 Monet 规则展开。
+    // 只包在这一层而非 AppTheme 根部: 现阶段全站仍是 M2 组件, 先让 miuix 的
+    // LocalIndication/文字样式只笼罩设置页, 不影响其他页面手感。
+    val appColors = AppTheme.colors
+    ProvideMiuixTheme(isDark = appColors.isDark, accent = appColors.accent) {
+        if (columns == null) {
+            LazyColumn(
+                modifier = modifier.fillMaxSize(),
+                state = listState,
+                contentPadding = contentPadding,
+            ) {
+                ListPreferenceScope(this).content()
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = columns,
+                modifier = modifier.fillMaxSize(),
+                contentPadding = contentPadding,
+            ) {
+                GridPreferenceScope(this).content()
+            }
         }
     }
 }
 
-/** 分组标题：accent 色，复刻 PreferenceCategory (网格下跨整行) */
+/** 分组标题：miuix SmallTitle 样式（onBackgroundVariant + subtitle 字阶），网格下跨整行 */
 fun PreferenceScope.preferenceCategory(title: String) = preferenceItem(fullLine = true) {
-    Text(
+    SmallTitle(
         text = title,
-        color = AppTheme.colors.accent,
-        fontSize = 14.sp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = DesignTokens.spacingLg, end = DesignTokens.spacingLg, top = DesignTokens.spacingLg, bottom = DesignTokens.spacingDefault),
+        insideMargin = PaddingValues(
+            start = DesignTokens.spacingLg,
+            end = DesignTokens.spacingLg,
+            top = DesignTokens.spacingLg,
+            bottom = DesignTokens.spacingDefault,
+        ),
     )
+}
+
+/**
+ * 卡片分组：标题 + 一块圆角卡片，卡片内的设置项之间自动加分隔线。
+ *
+ * 这是 MD3 皮肤设置页的基本视觉单元（原文对应 `Card { BasicComponent(...) }`）。
+ * 与 [preferenceCategory] 的区别只在是否包卡片：扁平写法保留给需要跨列/自定义排版的场景。
+ *
+ * 卡片内的项**不**各自发射 Lazy item，而是作为同一 item 在内部 Column 里顺序渲染，
+ * 否则跨 Lazy item 无法共享一块背景。
+ */
+fun PreferenceScope.preferenceCard(
+    title: String? = null,
+    content: PreferenceScope.() -> Unit,
+) = preferenceItem(fullLine = true) {
+    // 每次重组重建收集器: content 里每个 preference 只是记录 lambda, 不会重复执行设置项本体
+    val holder = ColumnPreferenceScope()
+    holder.content()
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = DesignTokens.spacingLg, end = DesignTokens.spacingLg, bottom = DesignTokens.spacingDefault),
+    ) {
+        if (title != null) {
+            SmallTitle(
+                text = title,
+                insideMargin = PaddingValues(top = DesignTokens.spacingDefault, bottom = DesignTokens.spacingDefault),
+            )
+        }
+        Card(modifier = Modifier.fillMaxWidth()) {
+            holder.items.forEachIndexed { index, item ->
+                item()
+                if (index != holder.items.lastIndex) {
+                    // 缩进对齐 miuix 列表：分隔线从文字起始处开始，不贯通卡片
+                    HorizontalDivider(modifier = Modifier.padding(start = DesignTokens.spacingLg))
+                }
+            }
+        }
+    }
 }
 
 /** 普通项：title/summary/icon/click，复刻 Preference */
@@ -237,7 +302,8 @@ fun PreferenceScope.switchPreference(
         onLongClick = onLongClick,
         switchState = isChecked,
         widget = {
-            AppSwitch(checked = isChecked, onCheckedChange = null, enabled = enabled)
+            // 行尾开关只显示状态, 交互与朗读由整行承担 (onCheckedChange = null)
+            MiuixSwitch(checked = isChecked, onCheckedChange = null, enabled = enabled)
         },
     )
 }
@@ -397,9 +463,14 @@ fun PreferenceScope.iconListPreference(
 }
 
 /**
- * 行骨架：复刻 view_preference（透明底 + 图标 accent + 双行文本 + 行尾 widget）。
- * 按压/聚焦反馈走 Compose 默认指示（主题波纹，覆盖整行）；[switchState] 非空表示
- * 行尾是开关，开关角色与开/关状态朗读由本行承担，行尾开关只显示状态。
+ * 行骨架：改为 miuix [BasicComponent] 渲染（MD3 皮肤的列表行质感：56dp 最小高、
+ * 圆角卡片内距、标题 headline1、摘要 body2）。
+ *
+ * 交互仍走本文件自己的 `combinedClickable` + 语义修饰，而不是 [BasicComponent] 的
+ * onClick 参数 —— 后者不支持长按，而设置项 DSL 的 onLongClick 是既有 API。
+ * 传给 [BasicComponent] 的 onClick 保持 null，避免内层可点击与外层重复消费事件。
+ *
+ * [switchState] 非空表示行尾是开关，开关角色与开/关状态朗读由本行承担，行尾开关只显示状态。
  */
 @Composable
 internal fun PreferenceRow(
@@ -428,58 +499,75 @@ internal fun PreferenceRow(
                 onLongClick = onLongClick,
             )
     } else Modifier
-    Row(
-        Modifier
-            .fillMaxWidth()
+    BasicComponent(
+        modifier = Modifier
             .then(clickModifier)
             .then(switchModifier)
             .then(
                 if (enabled) Modifier else Modifier
                     .alpha(0.38f)
                     .semantics { disabled() }
-            )
-            .heightIn(min = 60.dp)
-            .padding(horizontal = DesignTokens.spacingLg, vertical = DesignTokens.spacingMd),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (icon != null) {
-            Icon(
-                painter = icon,
-                contentDescription = null,
-                tint = AppTheme.colors.accent,
-                modifier = Modifier.size(24.dp),
-            )
-            Spacer(Modifier.width(DesignTokens.spacingLg))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(title, color = titleColor, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (!summary.isNullOrEmpty()) {
-                Text(summary, color = summaryColor, fontSize = 14.sp, modifier = Modifier.padding(top = DesignTokens.spacingDefault))
+            ),
+        insideMargin = PaddingValues(
+            horizontal = DesignTokens.spacingLg,
+            vertical = DesignTokens.spacingMd,
+        ),
+        startAction = icon?.let { painter ->
+            {
+                Icon(
+                    painter = painter,
+                    contentDescription = null,
+                    tint = MiuixTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
+                )
             }
-        }
-        if (widget != null) {
-            // view_preference: widget 无前置间隙, layout_marginEnd 8dp
-            Box(Modifier.padding(end = DesignTokens.spacingDefault), contentAlignment = Alignment.Center) { widget() }
+        },
+        endActions = widget?.let { content -> { content() } },
+        enabled = enabled,
+    ) {
+        Text(
+            text = title,
+            color = titleColor,
+            fontSize = MiuixTheme.textStyles.headline1.fontSize,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (!summary.isNullOrEmpty()) {
+            Text(
+                text = summary,
+                color = summaryColor,
+                fontSize = MiuixTheme.textStyles.body2.fontSize,
+                modifier = Modifier.padding(top = DesignTokens.spacingXs),
+            )
         }
     }
 }
 
-/** 行尾 fillet 文本（复刻 item_fillet_text：secondaryText 字、圆角底） */
+/** 行尾 fillet 文本（miuix 风格：secondaryContainer 底 + 圆角 + footnote 字阶） */
 @Composable
 private fun FilletText(text: String, isBottomBackground: Boolean) {
     if (text.isEmpty()) return
-    val colors = AppTheme.colors
-    val textColor = if (isBottomBackground) prefTextColors(true).first else colors.secondaryText
-    val btnBg = rememberColor("btn_bg")
+    val textColor = if (isBottomBackground) {
+        prefTextColors(true).first
+    } else {
+        MiuixTheme.colorScheme.onSecondaryContainer
+    }
     Box(
         Modifier
-            // 复刻 selector_fillet_btn_bg 的 4dp inset：底色内缩，外围留白不变
+            // 底色内缩, 外围留白不变
             .padding(DesignTokens.spacingXs)
             .clip(DesignTokens.shapeDefault)
-            .background(btnBg)
-            .padding(horizontal = DesignTokens.spacingMd, vertical = DesignTokens.spacingDefault),
+            .background(MiuixTheme.colorScheme.secondaryContainer)
+            .padding(horizontal = DesignTokens.spacingMd, vertical = DesignTokens.spacingXs),
     ) {
-        Text(text, color = textColor, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            text = text,
+            color = textColor,
+            fontSize = MiuixTheme.textStyles.footnote1.fontSize,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -525,9 +613,9 @@ private fun SingleChoiceDialog(
 }
 
 /**
- * 文本颜色：普通项使用 AppTheme 的 primaryText/summaryText 语义色，值对齐
- * origin/quickjs 的 primaryText/tv_text_summary；isBottomBackground 复刻
- * getPrimaryTextColor/getSecondaryTextColor（由底栏色亮度反推）。
+ * 文本颜色：普通项直接用 miuix 色板语义（onBackground / onSurfaceVariantSummary），
+ * 与列表行的 miuix 视觉统一；[isBottomBackground] 时仍按底栏色亮度反推 —— 底栏是
+ * 用户自定义色，不在 miuix 色板管辖范围内，必须按实际亮度决定黑/白字。
  */
 @Composable
 internal fun prefTextColors(isBottomBackground: Boolean): Pair<Color, Color> {
@@ -537,6 +625,6 @@ internal fun prefTextColors(isBottomBackground: Boolean): Pair<Color, Color> {
         val summary = if (light) Color(0x8A000000) else Color.White
         title to summary
     } else {
-        AppTheme.colors.primaryText to AppTheme.colors.summaryText
+        MiuixTheme.colorScheme.onBackground to MiuixTheme.colorScheme.onSurfaceVariantSummary
     }
 }

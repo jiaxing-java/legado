@@ -4,7 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import io.legado.app.ui.compose.preference.PreferenceScreen
 import io.legado.app.ui.compose.preference.preference
-import io.legado.app.ui.compose.preference.preferenceCategory
+import io.legado.app.ui.compose.preference.preferenceCard
 import legado.ui.generated.resources.Res
 import legado.ui.generated.resources.check_update
 import legado.ui.generated.resources.contributors
@@ -58,58 +58,63 @@ fun AboutScreen(
     val titleDonate = stringResource(Res.string.donate_qrcode)
 
     PreferenceScreen(modifier = modifier) {
-        preference(
-            title = titleContributors,
-            summary = summaryContributors,
-            onClick = { actions.onOpenUrl(state.contributorsUrl) },
-        )
-        preference(
-            title = titleTelegram,
-            onClick = { actions.onOpenUrl(state.telegramGroupUrl) },
-        )
-        preference(
-            title = titleCurrentVersion,
-            summary = state.versionSummary,
-            onClick = { actions.onCopyVersion() },
-        )
-        if (state.showCheckUpdate) {
+        // MD3 皮肤: 逐组包卡片。分组边界与原 preferenceCategory 一致, 只是从
+        // "标题 + 扁平行" 变成 "标题 + 圆角卡片内的一组行"。
+        preferenceCard {
             preference(
-                title = titleCheckUpdate,
-                enabled = !state.checkingUpdate,
-                onClick = { actions.onCheckUpdate() },
+                title = titleContributors,
+                summary = summaryContributors,
+                onClick = { actions.onOpenUrl(state.contributorsUrl) },
             )
+            preference(
+                title = titleTelegram,
+                onClick = { actions.onOpenUrl(state.telegramGroupUrl) },
+            )
+            preference(
+                title = titleCurrentVersion,
+                summary = state.versionSummary,
+                onClick = { actions.onCopyVersion() },
+            )
+            if (state.showCheckUpdate) {
+                preference(
+                    title = titleCheckUpdate,
+                    enabled = !state.checkingUpdate,
+                    onClick = { actions.onCheckUpdate() },
+                )
+            }
         }
 
-        preferenceCategory(titleOther)
-        preference(
-            title = titleCrashLog,
-            onClick = { actions.onShowCrashLogs() },
-        )
-        preference(
-            title = titleSaveLog,
-            onClick = { actions.onSaveLog() },
-        )
-        if (state.showCreateHeapDump) {
+        preferenceCard(title = titleOther) {
             preference(
-                title = titleCreateHeapDump,
-                onClick = { actions.onCreateHeapDump() },
+                title = titleCrashLog,
+                onClick = { actions.onShowCrashLogs() },
+            )
+            preference(
+                title = titleSaveLog,
+                onClick = { actions.onSaveLog() },
+            )
+            if (state.showCreateHeapDump) {
+                preference(
+                    title = titleCreateHeapDump,
+                    onClick = { actions.onCreateHeapDump() },
+                )
+            }
+            preference(
+                title = titleDonate,
+                onClick = { actions.onShowDonateQr() },
+            )
+            preference(
+                title = titlePrivacyPolicy,
+                onClick = { actions.onShowMdFile(titlePrivacyPolicy, "md/privacyPolicy.md") },
+            )
+            preference(
+                title = titleLicense,
+                onClick = { actions.onShowMdFile(titleLicense, "md/LICENSE.md") },
+            )
+            preference(
+                title = titleDisclaimer,
+                onClick = { actions.onShowMdFile(titleDisclaimer, "md/disclaimer.md") },
             )
         }
-        preference(
-            title = titleDonate,
-            onClick = { actions.onShowDonateQr() },
-        )
-        preference(
-            title = titlePrivacyPolicy,
-            onClick = { actions.onShowMdFile(titlePrivacyPolicy, "md/privacyPolicy.md") },
-        )
-        preference(
-            title = titleLicense,
-            onClick = { actions.onShowMdFile(titleLicense, "md/LICENSE.md") },
-        )
-        preference(
-            title = titleDisclaimer,
-            onClick = { actions.onShowMdFile(titleDisclaimer, "md/disclaimer.md") },
-        )
     }
 }
