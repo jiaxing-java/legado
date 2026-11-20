@@ -183,6 +183,8 @@ miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur", version.ref = "miuix
 miuix-glass = { module = "top.yukonga.miuix.kmp:miuix-glass", version.ref = "miuix" }
 miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons", version.ref = "miuix" }
 miuix-material = { module = "top.yukonga.miuix.kmp:miuix-material", version.ref = "miuix" }
+# 仅 desktop 变体 (源码在 desktopMain, 依赖 java.awt/JNA), 没有 iosArm64/android,
+# 因此不能进 sharedUiMain; 当前未使用, 保留坐标备桌面窗口装饰用。
 miuix-window = { module = "top.yukonga.miuix.kmp:miuix-window", version.ref = "miuix" }
 miuix-squircle = { module = "top.yukonga.miuix.kmp:miuix-squircle", version.ref = "miuix" }
 

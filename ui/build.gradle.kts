@@ -189,9 +189,15 @@ kotlin {
                 api(libs.miuix.blur)
                 implementation(libs.miuix.preference)
                 implementation(libs.miuix.icons)
-                // 皮肤实际引用到 material/window (MD3 侧 import 计数: material 9 处、window 3 处)
+                // 皮肤实际引用到 material (MD3 侧 import 计数 9 处)
                 implementation(libs.miuix.material)
-                implementation(libs.miuix.window)
+                // 注意: 不要在此加 miuix-window。该模块只声明 jvm("desktop") 一种目标
+                // (源码全在 desktopMain, 依赖 java.awt/JNA), 没有 iosArm64 变体;
+                // 声明在这里会让 :ui:iosArm64CompileKlibraries 解析失败
+                // (No matching variant of project ':miuix:miuix-window')。
+                // MD3 侧 import 的 WindowDialog/WindowBottomSheet/WindowListPopup 在
+                // 本分支的 miuix-window 里并不存在 (只有 MiuixWindow/CaptionBar 等桌面窗口装饰),
+                // 移植那三个组件时须改用 miuix-ui 的通用弹层实现。
                 // JSON 树形展示 (vendored, 含长按取 JSONPath)。声明在本源集: JsonTree 的公开签名
                 // 引用 Compose 类型 (Modifier/PaddingValues/TextStyle 等), commonMain 无 Compose 依赖。
                 implementation(project(":modules:treeview"))
