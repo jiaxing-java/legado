@@ -39,6 +39,13 @@ interface ThemeStoreProvider {
      */
     val bgImageBlur: Int
         get() = 0
+
+    /**
+     * MD3 皮肤配色预设名 (LegadoMiuixPalette 的枚举名)。
+     * null = 不指定预设, 由主题强调色作种子生成 miuix 色板 (既有行为)。
+     */
+    val miuixPaletteName: String?
+        get() = null
 }
 
 /**
@@ -81,6 +88,12 @@ open class SharedThemeStoreProvider : ThemeStoreProvider {
             if (isNight) PreferKey.bgImageNBlurring else PreferKey.bgImageBlurring,
             0,
         )
+
+    /** MD3 配色预设名; 空白视为未设置 (用主题强调色作种子) */
+    override val miuixPaletteName: String?
+        get() = PreferenceProviders.get()
+            .getStringOrNull(PreferKey.miuixPalette)
+            ?.takeUnless { it.isBlank() }
 
     /** 日/夜判定与业务层同源 (含「跟随系统」档), 影响兜底色与壁纸/模糊取键 */
     protected val isNight: Boolean

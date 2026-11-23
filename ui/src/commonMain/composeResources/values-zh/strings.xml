@@ -337,6 +337,9 @@
     <string name="predictive_back_summary">从屏幕边缘滑动返回时页面跟着手指移动（Android 14 及以上），松手后按位移与速度决定是否返回；关闭后改为按下即判定。</string>
     <string name="user_agent">用户代理</string>
     <string name="threads_num_title">更新和搜索线程数（太多会卡顿）</string>
+    <string name="miuix_palette_title">MD3 配色</string>
+    <string name="miuix_palette_summary">作用于按钮、对话框、菜单与设置卡片；默认跟随主题色。</string>
+    <string name="miuix_palette_follow_theme">跟随主题色</string>
     <string name="bitmap_cache_size">图片绘制缓存</string>
     <string name="clear_cache">清理缓存</string>
     <string name="clear_cache_summary">清除已下载书籍和字体缓存</string>

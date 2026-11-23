@@ -337,6 +337,9 @@
     <string name="predictive_back_summary">While you swipe back from the screen edge the page follows your finger (Android 14 and later), and the release distance and speed decide whether it returns. Turn it off to decide right at touch-down instead.</string>
     <string name="user_agent">User agent</string>
     <string name="threads_num_title">Number of concurrent tasks</string>
+    <string name="miuix_palette_title">MD3 color scheme</string>
+    <string name="miuix_palette_summary">Applies to buttons, dialogs, menus and settings cards. Follow theme color by default.</string>
+    <string name="miuix_palette_follow_theme">Follow theme color</string>
     <string name="bitmap_cache_size">bitmap cache size</string>
     <string name="clear_cache">Clear cache</string>
     <string name="clear_cache_summary">Clear the cache of the downloaded books and fonts</string>

@@ -5,6 +5,12 @@ object PreferKey {
     const val language = "language"
     const val fontScale = "fontScale"
     const val themeMode = "themeMode"
+
+    /**
+     * MD3 皮肤配色预设 (LegadoMiuixPalette 的枚举名)。
+     * 空/不存在 = 用主题强调色作种子 (即原有的自定义色行为)。
+     */
+    const val miuixPalette = "miuixPalette"
     const val userAgent = "userAgent"
     const val showUnread = "showUnread"
     const val bookGroupStyle = "bookGroupStyle"

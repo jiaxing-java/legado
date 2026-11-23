@@ -287,7 +287,14 @@ fun AppTheme(
                         // MD3 皮肤令牌: 全站注入 miuix 色板与字阶, 供 widget 层替换后的
                         // miuix 组件取色 (此前只在设置页局部注入)。不动 indication/overscroll,
                         // 详见 ProvideMiuixTheme 的实现注释。
-                        ProvideMiuixTheme(isDark = colors.isDark, accent = colors.accent) {
+                        // 配色预设来自设置 (PreferKey.miuixPalette): 未选预设时用主题强调色
+                        // 作种子, 选了则用该套 MD3 配色的浅/深种子。
+                        ProvideMiuixTheme(
+                            isDark = colors.isDark,
+                            accent = colors.accent,
+                            palette = themeStore.miuixPaletteName
+                                ?.let { name -> LegadoMiuixPalette.entries.firstOrNull { it.name == name } },
+                        ) {
                             content()
                         }
                     }

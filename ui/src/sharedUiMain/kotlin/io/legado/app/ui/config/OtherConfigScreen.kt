@@ -6,7 +6,9 @@ import io.legado.app.ui.compose.preference.PreferenceScreen
 import io.legado.app.ui.compose.preference.listPreference
 import io.legado.app.ui.compose.preference.preference
 import io.legado.app.ui.compose.preference.switchPreference
+import io.legado.app.ui.compose.platform.LocalEventBusProvider
 import io.legado.app.ui.compose.theme.AppTheme
+import io.legado.app.ui.compose.theme.LegadoMiuixPalette
 import legado.ui.generated.resources.Res
 import legado.ui.generated.resources.add_to_text_context_menu_s
 import legado.ui.generated.resources.add_to_text_context_menu_t
@@ -37,6 +39,9 @@ import legado.ui.generated.resources.language
 import legado.ui.generated.resources.language_value
 import legado.ui.generated.resources.media_button_on_exit_summary
 import legado.ui.generated.resources.media_button_on_exit_title
+import legado.ui.generated.resources.miuix_palette_follow_theme
+import legado.ui.generated.resources.miuix_palette_summary
+import legado.ui.generated.resources.miuix_palette_title
 import legado.ui.generated.resources.pre_download
 import legado.ui.generated.resources.predictive_back_summary
 import legado.ui.generated.resources.predictive_back_title
@@ -185,6 +190,13 @@ fun OtherConfigScreen(
     val titleRecordHeapDump = stringResource(Res.string.record_heap_dump_t)
     val summaryRecordHeapDump = stringResource(Res.string.record_heap_dump_s)
     val titleCustomPageKey = stringResource(Res.string.custom_page_key)
+    // MD3 配色预设: 只影响 miuix 组件取色 (按钮/对话框/菜单/设置卡片),
+    // 页面底色仍由主题的背景色/壁纸决定。改名后发 recreate 事件让 AppTheme 重读设置。
+    val eventBus = LocalEventBusProvider.current
+    val titleMiuixPalette = stringResource(Res.string.miuix_palette_title)
+    val summaryMiuixPalette = stringResource(Res.string.miuix_palette_summary)
+    val miuixFollowTheme = stringResource(Res.string.miuix_palette_follow_theme)
+    val miuixPaletteNames = LegadoMiuixPalette.entries.map { it.name }
 
     AppTheme {
         PreferenceScreen {
@@ -207,6 +219,16 @@ fun OtherConfigScreen(
                 entries = homePageEntries,
                 values = homePageValues,
                 defaultValue = "bookshelf",
+            )
+            // MD3 配色预设: 空值 = 跟随主题色 (原行为)
+            listPreference(
+                prefKey = PreferKey.miuixPalette,
+                title = titleMiuixPalette,
+                summary = summaryMiuixPalette,
+                entries = listOf(miuixFollowTheme) + miuixPaletteNames,
+                values = listOf("") + miuixPaletteNames,
+                defaultValue = "",
+                onValueChange = { eventBus.emitRecreate() },
             )
             switchPreference(
                 prefKey = PreferKey.autoRefresh,
