@@ -35,7 +35,11 @@ import kotlin.concurrent.Volatile
  * 对应 app 端 [io.legado.app.service.AudioPlayService] 的 ExoPlayer 部分。
  * 自 mediamp-mpv 迁移后不再用 jlayer (仅 MP3 + 自研进度/结束检测), 改为复用桌面
  * 视频端同一套 open-ani/mediamp + mpv 后端:
- * - 格式: FFmpeg 全格式 (MP3/M4A/AAC/FLAC/WAV/OGG/OPUS 等), 不再局限 MP3
+ * - 格式: mediamp-mpv runtime 自带的 FFmpeg demuxer 子集。**实测 2026-11-24 (mediamp 0.5.3 /
+ *   mpv v0.41.0 / FFmpeg 8.0.1): MP3 over HTTP 正常; WAV 明确不可用**——mpv 报
+ *   `unrecognized file format` (mpv_error=-17), http 与 file 两种源都一样, 属该 mpv 构建
+ *   未编入 wav demuxer, 不是 URL 拼写问题。音频书主流是 MP3/M4A, 用到 WAV 的源需另寻通道
+ *   (HTTP TTS 走 [io.legado.desktop.tts.DesktopHttpTtsPlayer] 的 javax.sound, 不受此限)。
  * - 结束检测: mpv 原生 eof-reached → MediaStatus.Ended (根治 jlayer play()
  *   返回值语义反噬导致的"播完不切下一首")
  * - 时长/进度: mpv time-pos/duration 属性 (精确, 不再墙钟估算)
