@@ -45,8 +45,27 @@ object HttpTtsRequest {
             )
         },
     ): KmpResponse {
+        // 源声明了语速就按源的标定值合成（(speed + 5) 里 10 = 1.0 倍），
+        // 没声明才沿用全局语速——保证老源导入后听感与升级前一致。
+        val speakSpeed = config.speed?.let { (it + 5).coerceIn(0, 90) } ?: speechRate
+        // 同一源的实时/试听/预合成共用一个配额，避免多路并发把上游打出 429。
+        return HttpTtsSynthesisLimiter.withQuota(
+            config.id.toString(),
+            config.synthesisThreadCount,
+        ) {
+            doAudioResponse(config, text, speakSpeed, context, factory)
+        }
+    }
+
+    private suspend fun doAudioResponse(
+        config: HttpTTS,
+        text: String,
+        speakSpeed: Int,
+        context: CoroutineContext,
+        factory: HttpTtsAnalyzeUrlFactory,
+    ): KmpResponse {
         val request = factory.create(
-            config.url, config, READ_TIMEOUT_MS, context, speakVariables(text, speechRate),
+            config.url, config, READ_TIMEOUT_MS, context, speakVariables(text, speakSpeed),
         )
         var response = request.getResponseAwait()
         try {

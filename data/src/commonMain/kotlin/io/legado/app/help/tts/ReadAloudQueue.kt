@@ -18,20 +18,27 @@ class ReadAloudQueue {
     /**
      * 队列快照(不可变)。
      *
-     * @param contentList 待朗读段落列表(按 \n 分段并过滤空段,非句读切分)
+     * @param contentList 待朗读段落列表(按 \n 分段并过滤空段; 句子模式下段内再按句读切分)
      * @param nowSpeak 当前朗读段落下标
      * @param readAloudNumber 已朗读进度(章节内字符位置)
      * @param paragraphStartPos 当前段落内的起始偏移
+     * @param separators 每段之后到下一段之间的原始字符数(换行/空白)。
+     *   句子模式切出的同位段之间是 0, 段落之间是真实换行数(通常 1)。
+     *   列表为空 = 全部按 1 计(旧行为, 也兼容所有存量调用点)。
      */
     data class Snapshot(
         val contentList: List<String> = emptyList(),
         val nowSpeak: Int = 0,
         val readAloudNumber: Int = 0,
         val paragraphStartPos: Int = 0,
+        val separators: List<Int> = emptyList(),
     ) {
 
         /** 当前段文本; 空表或下标越出段表时为 null (此刻章内已无可朗读段)。 */
         fun currentParagraph(): String? = contentList.getOrNull(nowSpeak)
+
+        /** 第 [index] 段之后的原始分隔符长度(缺省按 1)。 */
+        fun separatorAt(index: Int): Int = separators.getOrNull(index) ?: 1
     }
 
     private val state = atomic(Snapshot())
@@ -50,11 +57,13 @@ class ReadAloudQueue {
         nowSpeak: Int = 0,
         readAloudNumber: Int = 0,
         paragraphStartPos: Int = 0,
+        separators: List<Int> = emptyList(),
     ) {
         val index = nowSpeak.coerceIn(0, contentList.lastIndex.coerceAtLeast(0))
         state.value = Snapshot(
             contentList = contentList,
             nowSpeak = index,
+            separators = separators,
             readAloudNumber = readAloudNumber.coerceAtLeast(0),
             paragraphStartPos = paragraphStartPos.coerceIn(
                 0,
@@ -126,7 +135,8 @@ class ReadAloudQueue {
             next = next.copy(
                 nowSpeak = target,
                 readAloudNumber = next.readAloudNumber -
-                    next.contentList[target].length - 1 - next.paragraphStartPos,
+                    next.contentList[target].length - next.separatorAt(target) -
+                    next.paragraphStartPos,
                 paragraphStartPos = 0,
             )
         } while (next.nowSpeak > 0 && next.contentList[next.nowSpeak].matches(AppPattern.notReadAloudRegex))
@@ -135,7 +145,7 @@ class ReadAloudQueue {
 
     /** 本段推进要累加的字符数 (段长 + 1 个换行 - 段内已读偏移)。 */
     private fun Snapshot.paragraphStep(): Int =
-        (currentParagraph()?.length ?: 0) + 1 - paragraphStartPos
+        (currentParagraph()?.length ?: 0) + separatorAt(nowSpeak) - paragraphStartPos
 
     // endregion
 
@@ -163,6 +173,114 @@ class ReadAloudQueue {
     }
 
     companion object {
+
+        /** 分段模式：按段落（\n）切。 */
+        const val SPLIT_MODE_PARAGRAPH = 0
+
+        /** 分段模式：段落内再按句读切。 */
+        const val SPLIT_MODE_SENTENCE = 1
+
+        /** 默认句读结束符（切在符号之后，符号留在本段末尾）。 */
+        private const val DEFAULT_SENTENCE_ENDERS = "。！？!?…；;"
+
+        /** 句读后仍属于本段的收尾符号（引号/括号），避免把右引号甩到下一段开头。 */
+        private const val TRAILING_MARKS = "”’』」）)】》\"'"
+
+        /**
+         * 一个待朗读片段及其在原文里的位置。
+         *
+         * @param text 片段文本（原文切片，未做任何改写）
+         * @param start 片段在章节朗读文本中的起始字符下标
+         * @param gap 片段之后到下一片段之间的原始字符数；最后一段按 1 计（与旧行为一致）
+         */
+        data class Segment(val text: String, val start: Int, var gap: Int)
+
+        /**
+         * 按段落/句读把章节文本切成片段，并给出每个片段的真实位置。
+         *
+         * 位置是**原文下标**，所以朗读进度（[Snapshot.readAloudNumber]）继续可以和阅读器里的
+         * 字符位置对齐；句子模式只是把一段拆成多段，`text` 仍是原文切片，不做「插入换行」
+         * 这类改写 —— 改写会让续读位置逐句漂移。
+         *
+         * 旧行为等价性：`mode = SPLIT_MODE_PARAGRAPH` 且无自定义符号时，片段文本与
+         * `text.split("\n").filter { it.isNotEmpty() }` 逐字相同。
+         */
+        fun splitSegments(
+            text: String,
+            mode: Int = SPLIT_MODE_PARAGRAPH,
+            customSymbols: String? = null,
+        ): List<Segment> {
+            if (text.isEmpty()) return emptyList()
+            val sentenceMode = mode == SPLIT_MODE_SENTENCE
+            val enders = if (customSymbols.isNullOrEmpty()) {
+                DEFAULT_SENTENCE_ENDERS
+            } else {
+                DEFAULT_SENTENCE_ENDERS + customSymbols
+            }
+            val result = ArrayList<Segment>()
+            var lineStart = 0
+            var i = 0
+            while (i <= text.length) {
+                val atEnd = i == text.length
+                if (atEnd || text[i] == '\n') {
+                    if (i > lineStart) {
+                        if (sentenceMode) {
+                            appendSentenceSegments(text, lineStart, i, enders, result)
+                        } else {
+                            result.add(Segment(text.substring(lineStart, i), lineStart, 1))
+                        }
+                    }
+                    lineStart = i + 1
+                }
+                i++
+            }
+            if (result.isEmpty()) return result
+            // gap 用下一段的真实起点回算：多空行、句子切分都能得到正确的分隔长度。
+            for (index in 0 until result.lastIndex) {
+                val cur = result[index]
+                cur.gap = result[index + 1].start - (cur.start + cur.text.length)
+            }
+            return result
+        }
+
+        /** 把 `[from, to)` 这段按句读切开，追加到 [out]（gap 先占位，最后统一回算）。 */
+        private fun appendSentenceSegments(
+            text: String,
+            from: Int,
+            to: Int,
+            enders: String,
+            out: MutableList<Segment>,
+        ) {
+            var segStart = from
+            var i = from
+            while (i < to) {
+                if (text[i] in enders) {
+                    var end = i + 1
+                    // 连续结束符（“什么？！”）与右引号一起吃进来
+                    while (end < to && (text[end] in enders || text[end] in TRAILING_MARKS)) end++
+                    out.add(Segment(text.substring(segStart, end), segStart, 0))
+                    segStart = end
+                    i = end
+                } else {
+                    i++
+                }
+            }
+            if (segStart < to) {
+                out.add(Segment(text.substring(segStart, to), segStart, 0))
+            }
+        }
+
+        /**
+         * 从设置里取当前分段参数，供朗读链路直接调用。
+         *
+         * 放在这里而不是塞进控制器构造参数：分段是"读的时候才知道"的偏好，
+         * 控制器不持有配置对象，多传一个参数只会让所有调用点都改一遍。
+         */
+        fun currentSplitMode(): Int = io.legado.app.help.config.PreferenceProviders.get()
+            .getInt(io.legado.app.constant.PreferKey.readAloudContentSplitMode, SPLIT_MODE_PARAGRAPH)
+
+        fun currentSplitSymbols(): String? = io.legado.app.help.config.PreferenceProviders.get()
+            .getString(io.legado.app.constant.PreferKey.readAloudContentSplitSymbols, "")
 
         /** 按段落(\n)切分朗读文本并过滤空段 */
         fun splitParagraphs(text: String): List<String> {

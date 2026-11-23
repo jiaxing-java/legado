@@ -435,6 +435,7 @@ class ReadAloudControllerShared(
                 nowSpeak = plan.paragraphIndex,
                 readAloudNumber = plan.chapterPosition,
                 paragraphStartPos = plan.paragraphOffset,
+                separators = plan.separators,
             )
             if (playbackQueue.seekSpeakable().currentParagraph() != null) {
                 if (skipped > 0) {
@@ -607,6 +608,7 @@ class ReadAloudControllerShared(
             nowSpeak = plan.paragraphIndex,
             readAloudNumber = plan.chapterPosition,
             paragraphStartPos = plan.paragraphOffset,
+            separators = plan.separators,
         )
         playbackQueue.seekSpeakable()
     }
@@ -990,6 +992,8 @@ data class ReadAloudChapterPlan(
     val paragraphIndex: Int = 0,
     val paragraphOffset: Int = 0,
     val chapterPosition: Int = 0,
+    /** 每段之后到下一段之间的原始字符数；空表 = 全部按 1（旧行为）。 */
+    val separators: List<Int> = emptyList(),
 )
 
 /**

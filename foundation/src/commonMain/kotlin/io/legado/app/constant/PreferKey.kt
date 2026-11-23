@@ -231,4 +231,152 @@ object PreferKey {
      * 关闭时回到各页面自己注册的按键式返回回调 (与本改动前一致)。
      */
     const val predictiveBack = "predictiveBack"
+
+    // ==================== 朗读 / 听书（对齐 MD3） ====================
+
+    /**
+     * 听书界面形态：空/`dialog` = 沿用对话框，`player` = 全屏播放页。
+     * 键名与 MD3 一致，便于以后互导偏好。
+     */
+    const val defaultReadAloudInterface = "defaultReadAloudInterface"
+
+    /** 退出阅读页后是否继续朗读。 */
+    const val keepReadAloudOnExit = "keepReadAloudOnExit"
+
+    /** 朗读时是否把章节标题当作第一段念。 */
+    const val readAloudChapterTitle = "readAloudChapterTitle"
+
+    /** 分段模式：0 = 按段落，1 = 按句子。 */
+    const val readAloudContentSplitMode = "readAloudContentSplitMode"
+
+    /** 自定义切分符号（[readAloudContentSplitMode] 之外的用户补充）。 */
+    const val readAloudContentSplitSymbols = "readAloudContentSplitSymbols"
+
+    /** 离开阅读页时提醒朗读仍在后台。 */
+    const val readAloudDetachReminderEnabled = "readAloudDetachReminderEnabled"
+
+    /** 播放页背景模式。 */
+    const val readAloudPlayerBgMode = "readAloudPlayerBgMode"
+
+    /** 定时关闭模式：0 = 关，1 = 按分钟，2 = 按章。 */
+    const val readAloudTimerMode = "readAloudTimerMode"
+
+    /** 按章定时的章数。 */
+    const val readAloudTimerChapters = "readAloudTimerChapters"
+
+    /** 段间停顿毫秒（合成与播放共用）。 */
+    const val ttsParagraphInterval = "ttsParagraphInterval"
+
+    /** 预合成并发数（云 TTS 限流的唯一旋钮）。 */
+    const val ttsPreSynthesisConcurrency = "ttsPreSynthesisConcurrency"
+
+    /** 多角色朗读总开关。关掉时走单音色，链路与旧版一致。 */
+    const val multiRoleCast = "multiRoleCast"
+
+    /** 角色识别模式：`off` / `rule`（正则规则）/ `ai`。 */
+    const val speechAnalysisMode = "speechAnalysisMode"
+
+    /** AI 角色识别的推理档位。 */
+    const val speechAnalysisReasoningLevel = "speechAnalysisReasoningLevel"
+
+    /** 音色试听文本。 */
+    const val voicePreviewText = "voicePreviewText"
+
+    /** 正文里显示角色胶囊。 */
+    const val showReadAloudCapsule = "showReadAloudCapsule"
+
+    /** 播放时的背景模式（0 = 纯色，1 = 书封模糊）。 */
+    const val audioPlayBgMode = "audioPlayBgMode"
+
+    /** 背景音乐场景标记的编辑模式开关。 */
+    const val bgmAssign = "bgmAssign"
+
+    /** 当前选中的云 TTS 引擎 id，空 = 用系统 TTS 或 HTTP TTS。 */
+    const val cloudTtsEngineId = "cloudTtsEngineId"
+
+    // ==================== 阅读器补差 ====================
+
+    const val volumeKeyPage = "volumeKeyPage"
+    const val reverseVolumeKeyPage = "reverseVolumeKeyPage"
+    const val volumeKeyPageOnPlay = "volumeKeyPageOnPlay"
+    const val keyPageOnLongPress = "keyPageOnLongPress"
+    const val mouseWheelPage = "mouseWheelPage"
+    const val noAnimScrollPage = "noAnimScrollPage"
+    const val readBarStyleFollowPage = "readBarStyleFollowPage"
+
+    // ==================== 漫画（对齐 MD3） ====================
+
+    /** 阅读页显示漫画专属 UI（页脚进度、缩放提示等）。 */
+    const val showMangaUi = "showMangaUi"
+
+    /** 翻页模式：1 = 单页，2 = 双页，3 = 连续横向，4 = 纵向滚动（与 MD3 默认 4 一致）。 */
+    const val mangaScrollMode = "mangaScrollMode"
+
+    /** 缩放方式：0 = 适应宽度，1 = 适应高度，2 = 原始尺寸。 */
+    const val mangaPageScaleType = "mangaPageScaleType"
+
+    /** 双页模式：0 = 自动，1 = 强制双页，2 = 关闭。 */
+    const val mangaDoublePageMode = "mangaDoublePageMode"
+    const val mangaDoublePageInvert = "mangaDoublePageInvert"
+    const val mangaDoublePageShift = "mangaDoublePageShift"
+    const val mangaDoublePageCoverSingle = "mangaDoublePageCoverSingle"
+
+    /** 跨页宽图模式：0 = 跟随双页，1 = 独占一屏。 */
+    const val mangaWidePageMode = "mangaWidePageMode"
+
+    /** 放大后的初始落点：0 = 中心，1 = 点击位置，2 = 左上。 */
+    const val mangaZoomStartPosition = "mangaZoomStartPosition"
+
+    /** 预取章数（0 = 只取当前章）。 */
+    const val mangaChapterPrefetchCount = "mangaChapterPrefetchCount"
+
+    /** 自动离线缓存整章。 */
+    const val mangaAutoOfflineCache = "mangaAutoOfflineCache"
+
+    const val disableMangaCrossFade = "disableMangaCrossFade"
+    const val disableMangaScale = "disableMangaScale"
+    const val disableMangaScrollAnimation = "disableMangaScrollAnimation"
+
+    /** 墨水屏模式（阈值二值化）。 */
+    const val enableMangaEInk = "enableMangaEInk"
+    const val mangaEInkThreshold = "mangaEInkThreshold"
+
+    /** 背景色自动跟随图片主色。 */
+    const val mangaAutoBackground = "mangaAutoBackground"
+    const val mangaBackground = "mangaBackground"
+
+    /** 长按翻页。 */
+    const val mangaLongClick = "mangaLongClick"
+    const val mangaVolumeKeyPage = "mangaVolumeKeyPage"
+
+    /** 整本导出格式：`cbz` / `folder`。 */
+    const val mangaExportFormat = "mangaExportFormat"
+
+    /** 点击区域动作：-1 = 无，0 = 菜单，1 = 下一页，2 = 上一页。 */
+    const val mangaClickActionTL = "mangaClickActionTopLeft"
+    const val mangaClickActionTC = "mangaClickActionTopCenter"
+    const val mangaClickActionTR = "mangaClickActionTopRight"
+    const val mangaClickActionML = "mangaClickActionMiddleLeft"
+    const val mangaClickActionMC = "mangaClickActionMiddleCenter"
+    const val mangaClickActionMR = "mangaClickActionMiddleRight"
+    const val mangaClickActionBL = "mangaClickActionBottomLeft"
+    const val mangaClickActionBC = "mangaClickActionBottomCenter"
+    const val mangaClickActionBR = "mangaClickActionBottomRight"
+
+    // ==================== 漫画 AI 翻译 ====================
+
+    /** 翻译总开关（默认关，关掉即回到纯图片阅读）。 */
+    const val mangaTranslateEnabled = "mangaTranslateEnabled"
+
+    /** OCR 通道：`cloud`（S1 唯一可用）/ `local`（本机模型，iOS 不支持）。 */
+    const val mangaOcrProvider = "mangaOcrProvider"
+
+    /** 翻译通道：`cloud` / `llm`。 */
+    const val mangaTranslateProvider = "mangaTranslateProvider"
+
+    /** 目标语言（BCP-47 子集），默认简体中文。 */
+    const val mangaTranslateTargetLang = "mangaTranslateTargetLang"
+
+    /** 云端 OCR 凭证 JSON（按 provider 分节，避免为每家加列）。 */
+    const val mangaOcrCredentials = "mangaOcrCredentials"
 }

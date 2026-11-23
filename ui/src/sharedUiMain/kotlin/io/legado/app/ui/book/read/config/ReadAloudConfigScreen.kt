@@ -2,8 +2,12 @@ package io.legado.app.ui.book.read.config
 
 import androidx.compose.runtime.Composable
 import io.legado.app.constant.PreferKey
+import io.legado.app.help.tts.ReadAloudQueue
 import io.legado.app.ui.compose.preference.PreferenceScreen
+import io.legado.app.ui.compose.preference.editTextPreference
+import io.legado.app.ui.compose.preference.listPreference
 import io.legado.app.ui.compose.preference.preference
+import io.legado.app.ui.compose.preference.preferenceCategory
 import io.legado.app.ui.compose.preference.switchPreference
 import io.legado.app.ui.compose.theme.AppTheme
 import legado.ui.generated.resources.Res
@@ -13,6 +17,15 @@ import legado.ui.generated.resources.pref_media_button_per_next
 import legado.ui.generated.resources.pref_media_button_per_next_summary
 import legado.ui.generated.resources.read_aloud_by_page
 import legado.ui.generated.resources.read_aloud_by_page_summary
+import legado.ui.generated.resources.read_aloud_category_engine
+import legado.ui.generated.resources.read_aloud_category_play
+import legado.ui.generated.resources.read_aloud_category_split
+import legado.ui.generated.resources.read_aloud_split_mode
+import legado.ui.generated.resources.read_aloud_split_mode_paragraph
+import legado.ui.generated.resources.read_aloud_split_mode_sentence
+import legado.ui.generated.resources.read_aloud_split_mode_summary
+import legado.ui.generated.resources.read_aloud_split_symbols
+import legado.ui.generated.resources.read_aloud_split_symbols_summary
 import legado.ui.generated.resources.read_aloud_wake_lock
 import legado.ui.generated.resources.read_aloud_wake_lock_summary
 import legado.ui.generated.resources.speak_engine
@@ -28,12 +41,17 @@ import org.jetbrains.compose.resources.stringResource
  * pauseReadAloudWhilePhoneCalls 仍联动 ignoreAudioFocus 的值（enabled），
  * 朗读引擎 summary 动态（SpeakEngineDialog 回调刷新），事件广播由宿主承接。
  *
- * 下沉 shared/sharedUiMain 后:
- * - `stringResource(R.string.xxx)` → `stringResource(Res.string.xxx)` (key-based, 跨平台)
- * - PreferenceScreen/preference/preferenceCategory/switchPreference 走 shared/sharedUiMain 的
- *   io.legado.app.ui.compose.preference 包, 内部通过 PreferenceProviders 单例读写 prefs
- * - 注意: 原 "mediaButtonPerNext" 为硬编码 key (不在 PreferKey 中), 保留原字面量字符串
- * - "朗读设置"分类标题已提升为对话框标题栏 (2026-10-11 用户拍板), 本 Screen 只留条目
+ * # 分组（对齐 MD3 的四段结构）
+ *
+ * MD3 把朗读设置拆成「界面 / 角色 / 缓存与定时」几组。本轮只落地**播放**与**分段**两组：
+ * 角色组依赖多角色链路（B4），缓存与定时组依赖音频下载表（已在 v90 建好但还没有写入方），
+ * 先摆空组会点了没反应，等对应批次补齐后再加。
+ *
+ * # 未移植的开关
+ *
+ * MD3 的 `keepReadAloudOnExit`（退出阅读页是否继续朗读）在本仓库是**恒真行为**：
+ * 朗读由控制器持有，离开阅读页不会 stop（Android 前台服务 / iOS AVAudioSession 都如此），
+ * 因此这里不放这个开关 —— 拨了不改变任何行为的开关比没有更糟。
  */
 @Composable
 fun ReadAloudConfigScreen(
@@ -57,11 +75,22 @@ fun ReadAloudConfigScreen(
     val titleSysTtsConfig = stringResource(Res.string.sys_tts_config)
     val summarySysTtsConfig = stringResource(Res.string.sys_tts_config_summary)
 
+    val titleCategoryPlay = stringResource(Res.string.read_aloud_category_play)
+    val titleCategoryEngine = stringResource(Res.string.read_aloud_category_engine)
+    val titleCategorySplit = stringResource(Res.string.read_aloud_category_split)
+    val titleSplitMode = stringResource(Res.string.read_aloud_split_mode)
+    val summarySplitMode = stringResource(Res.string.read_aloud_split_mode_summary)
+    val entrySplitParagraph = stringResource(Res.string.read_aloud_split_mode_paragraph)
+    val entrySplitSentence = stringResource(Res.string.read_aloud_split_mode_sentence)
+    val titleSplitSymbols = stringResource(Res.string.read_aloud_split_symbols)
+    val summarySplitSymbols = stringResource(Res.string.read_aloud_split_symbols_summary)
+
     AppTheme {
         PreferenceScreen {
             // "忽略音频焦点"不在此重复: 原版 pref_config_aloud.xml 与 pref_config_other.xml
             // 各挂一份同 key 开关, 2026-09-04 用户拍板只留其它设置那一处。
             // pauseReadAloudWhilePhoneCalls 仍按它的值联动 enabled (值由其它设置页改)
+            preferenceCategory(titleCategoryPlay)
             switchPreference(
                 prefKey = PreferKey.pauseReadAloudWhilePhoneCalls,
                 title = titlePausePhoneCalls,
@@ -93,6 +122,8 @@ fun ReadAloudConfigScreen(
                 summary = summaryStreamReadAloud,
                 defaultValue = false,
             )
+
+            preferenceCategory(titleCategoryEngine)
             preference(
                 title = titleSpeakEngine,
                 summary = speakEngineSummary,
@@ -102,6 +133,27 @@ fun ReadAloudConfigScreen(
                 title = titleSysTtsConfig,
                 summary = summarySysTtsConfig,
                 onClick = onSysTtsConfig,
+            )
+
+            preferenceCategory(titleCategorySplit)
+            // 分段方式改动后要点一次"重新朗读"才生效: 已排好的段落表是这一章的快照,
+            // 切模式重建整章队列会让当前句被打断, 不做自动重建。
+            listPreference(
+                prefKey = PreferKey.readAloudContentSplitMode,
+                title = titleSplitMode,
+                summary = summarySplitMode,
+                entries = listOf(entrySplitParagraph, entrySplitSentence),
+                values = listOf(
+                    ReadAloudQueue.SPLIT_MODE_PARAGRAPH.toString(),
+                    ReadAloudQueue.SPLIT_MODE_SENTENCE.toString(),
+                ),
+                defaultValue = ReadAloudQueue.SPLIT_MODE_PARAGRAPH.toString(),
+            )
+            editTextPreference(
+                prefKey = PreferKey.readAloudContentSplitSymbols,
+                title = titleSplitSymbols,
+                summary = summarySplitSymbols,
+                defaultValue = "",
             )
         }
     }

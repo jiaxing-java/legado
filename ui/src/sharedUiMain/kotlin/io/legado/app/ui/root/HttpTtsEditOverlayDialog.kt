@@ -64,6 +64,10 @@ private fun HttpTtsEditOverlayForm(overlay: AppOverlay.Dialog, navigator: AppNav
                 "loginUi" -> loginUi = field.text
                 "loginCheckJs" -> loginCheckJs = field.text
                 "header" -> header = field.text
+                "speed" -> speed = field.text?.toIntOrNull()?.coerceIn(0, 80)
+                "synthesisThreadCount" -> field.text?.toIntOrNull()?.let {
+                    synthesisThreadCount = it.coerceIn(1, HttpTTS.MAX_SYNTHESIS_THREAD_COUNT)
+                }
             }
         }
     }
@@ -121,4 +125,11 @@ private fun httpTtsEditFields(source: HttpTTS): List<EditEntity> = listOf(
     EditEntity("loginUi", source.loginUi, syncGetString("login_ui"), ViewType.code, codePatterns = CodePattern.json),
     EditEntity("loginCheckJs", source.loginCheckJs, syncGetString("login_check_js"), ViewType.code, codePatterns = CodePattern.js),
     EditEntity("header", source.header, syncGetString("source_http_header"), ViewType.code, codePatterns = CodePattern.all),
+    // 源级语速/并发: 与 MD3 的 HttpTTS 字段同名同语义, 外部导出的配置带这两个字段
+    EditEntity("speed", source.speed?.toString(), syncGetString("read_aloud_source_speed")),
+    EditEntity(
+        "synthesisThreadCount",
+        source.synthesisThreadCount.toString(),
+        syncGetString("read_aloud_synthesis_threads"),
+    ),
 )

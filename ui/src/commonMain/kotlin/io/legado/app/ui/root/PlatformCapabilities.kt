@@ -485,6 +485,31 @@ interface PlatformCapabilities {
     val audioFocusSupported: Boolean get() = false
 
     /**
+     * 朗读能否在退到后台后继续（决定听书设置里「退出阅读页继续朗读」等项的显隐）。
+     *
+     * Android 靠前台 AudioPlayService + 唤醒锁, iOS 靠 `UIBackgroundModes: audio`
+     * 与 AVAudioSession.playback 类别; 桌面端没有后台音频语义, 拨了等于没拨。
+     */
+    val readAloudBackgroundSupported: Boolean get() = false
+
+    /**
+     * 漫画的**端侧**图像模型能力（本地 OCR / 擦字 / 超分）。
+     *
+     * Android 侧有 ML Kit 与 ONNX 运行时; iOS 侧不引入这些重资产依赖,
+     * 翻译链路一律走云端网关（[mangaCloudTranslateSupported]）。
+     * 为 false 的端在设置页把本地模型项显示为「当前平台暂不支持」,
+     * 而不是静默空实现——用户点下去要能立刻知道原因。
+     */
+    val mangaLocalModelSupported: Boolean get() = false
+
+    /**
+     * 漫画 AI 翻译是否可用（云 OCR + 云翻译，纯 HTTP 调用）。
+     *
+     * 与 [mangaLocalModelSupported] 分开：iOS 不做本地模型，但云端链路照常可用。
+     */
+    val mangaCloudTranslateSupported: Boolean get() = true
+
+    /**
      * 是否有"预测式返回跟手"能力 (决定其他设置里该开关的显隐)。
      *
      * 只有 Android 接了这条通道 (系统 API 34+ 给跟手进度, 按键/旧式返回走同一出口);

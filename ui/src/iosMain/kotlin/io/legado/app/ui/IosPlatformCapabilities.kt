@@ -340,6 +340,13 @@ object IosPlatformCapabilities : NativePlatformCapabilities {
     // .setAudioFocus → applyAudioSession), 所以"忽略音频焦点"开关在本端真实生效
     override val audioFocusSupported: Boolean get() = true
 
+    // 后台朗读: Info.plist 已声明 UIBackgroundModes=audio, 且
+    // IosMediaNotificationController 把 AVAudioSession 切成 .playback —— 退到后台可继续播
+    override val readAloudBackgroundSupported: Boolean get() = true
+
+    // 端侧图像模型: iOS 不带 ML Kit / ONNX 运行时, 漫画翻译走云端网关
+    override val mangaLocalModelSupported: Boolean get() = false
+
     override fun shareText(text: String) {
         presentShareSheet(listOf(text))
     }

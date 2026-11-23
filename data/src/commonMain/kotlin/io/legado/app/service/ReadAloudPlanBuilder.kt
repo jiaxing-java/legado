@@ -24,19 +24,21 @@ class ReadAloudPlanBuilder {
      * @param paragraphOffsets 各段在章内的起始字符位置; 构建后不再改动
      * @param paragraphBase 控制器段下标 0 对应的真实段下标 (startPos 裁剪产生的偏移)
      * @param firstParagraphSkip 首段被 startPos 裁掉的段内字符数
+     * @param separators 各段之后到下一段之间的原始字符数（句子模式切出的同位段为 0）
      */
     class Geometry(
         val paragraphs: List<String>,
         val paragraphOffsets: IntArray,
         val paragraphBase: Int,
         val firstParagraphSkip: Int,
+        val separators: IntArray = IntArray(0),
     ) {
         /** 该段在章内的起始字符位置; 段下标越界返回 null。 */
         fun paragraphStart(realIndex: Int): Int? = paragraphOffsets.getOrNull(realIndex)
     }
 
     /** 空 geometry: 无内容与尚未构建同一份取值。 */
-    private val emptyGeometry = Geometry(emptyList(), IntArray(0), 0, 0)
+    private val emptyGeometry = Geometry(emptyList(), IntArray(0), 0, 0, IntArray(0))
 
     private val geometry = atomic(emptyGeometry)
 
@@ -63,15 +65,22 @@ class ReadAloudPlanBuilder {
         chapterPosition: Int,
         fromLastSpeakable: Boolean,
     ): ReadAloudChapterPlan {
-        val all = ReadAloudQueue.splitParagraphs(text)
+        // 分段模式与自定义切分符号在朗读设置里，构建时才读：控制器不持有配置对象，
+        // 改设置后下一次 buildPlan 立即生效（旧计划已发出的音频不受影响）。
+        val segments = ReadAloudQueue.splitSegments(
+            text,
+            ReadAloudQueue.currentSplitMode(),
+            ReadAloudQueue.currentSplitSymbols(),
+        )
+        val all = segments.map { it.text }
         val offsets = IntArray(all.size)
-        var acc = 0
+        val separators = IntArray(all.size)
         for (i in all.indices) {
-            offsets[i] = acc
-            acc += all[i].length + 1
+            offsets[i] = segments[i].start
+            separators[i] = segments[i].gap
         }
         if (all.isEmpty()) {
-            publishGeometry(all, offsets, paragraphBase = 0, firstParagraphSkip = 0)
+            publishGeometry(all, offsets, paragraphBase = 0, firstParagraphSkip = 0, separators = separators)
             return ReadAloudChapterPlan(emptyList())
         }
 
@@ -84,7 +93,7 @@ class ReadAloudPlanBuilder {
             skip = 0
         }
         // 几何与计划由同一批局部量产出: 发布一次, 读方拿到的几何与本次计划同源
-        publishGeometry(all, offsets, base, skip)
+        publishGeometry(all, offsets, base, skip, separators)
 
         val realStartPos = offsets[base] + skip
         val sub = if (skip >= all[base].length) {
@@ -95,7 +104,11 @@ class ReadAloudPlanBuilder {
                 .also { if (skip > 0) it[0] = it[0].substring(skip) }
         }
         if (!fromLastSpeakable || sub.isEmpty()) {
-            return ReadAloudChapterPlan(sub, chapterPosition = realStartPos)
+            return ReadAloudChapterPlan(
+                sub,
+                chapterPosition = realStartPos,
+                separators = separators.asList().subList(base, separators.size),
+            )
         }
         val index = sub.indexOfLast { !it.matches(AppPattern.notReadAloudRegex) }
         if (index < 0) {
@@ -108,6 +121,7 @@ class ReadAloudPlanBuilder {
             paragraphIndex = index,
             paragraphOffset = 0,
             chapterPosition = chapterPos,
+            separators = separators.asList().subList(base, separators.size),
         )
     }
 
@@ -116,7 +130,8 @@ class ReadAloudPlanBuilder {
         offsets: IntArray,
         paragraphBase: Int,
         firstParagraphSkip: Int,
+        separators: IntArray,
     ) {
-        geometry.value = Geometry(paragraphs, offsets, paragraphBase, firstParagraphSkip)
+        geometry.value = Geometry(paragraphs, offsets, paragraphBase, firstParagraphSkip, separators)
     }
 }

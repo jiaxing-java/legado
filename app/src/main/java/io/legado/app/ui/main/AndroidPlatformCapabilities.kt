@@ -1462,6 +1462,12 @@ class AndroidPlatformCapabilities(
     // 音频焦点: AudioFocusController 真抢焦点 (ignoreAudioFocus 短路它)
     override val audioFocusSupported: Boolean get() = true
 
+    // 后台朗读: 前台 AudioPlayService + 唤醒锁
+    override val readAloudBackgroundSupported: Boolean get() = true
+
+    // 端侧图像模型: ML Kit OCR + ONNX 运行时在 Android 侧可用
+    override val mangaLocalModelSupported: Boolean get() = true
+
     // 堆转储记录: CrashHandler 在 OOM 时读 recordHeapDump 决定要不要 doHeapDump
     override val heapDumpRecordSupported: Boolean get() = true
 

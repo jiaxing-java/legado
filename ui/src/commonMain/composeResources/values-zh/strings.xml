@@ -83,6 +83,21 @@
     <string name="pref_media_button_per_next_summary">上一段|下一段/上一章|下一章</string>
     <string name="read_aloud_by_page">按页朗读</string>
     <string name="read_aloud_by_page_summary">及时翻页，翻页时会停顿一下</string>
+    <string name="read_aloud_category_play">播放</string>
+    <string name="read_aloud_category_engine">引擎</string>
+    <string name="read_aloud_category_split">分段</string>
+    <string name="read_aloud_keep_on_exit">退出阅读页后继续朗读</string>
+    <string name="read_aloud_keep_on_exit_summary">离开阅读页后在后台继续朗读</string>
+    <string name="read_aloud_split_mode">分段方式</string>
+    <string name="read_aloud_split_mode_summary">章节正文如何切成朗读单元</string>
+    <string name="read_aloud_split_mode_paragraph">按段落</string>
+    <string name="read_aloud_split_mode_sentence">按句子</string>
+    <string name="read_aloud_split_symbols">附加切分符号</string>
+    <string name="read_aloud_split_symbols_summary">按句子朗读时，额外当作句末的字符（追加在默认集合后）</string>
+    <string name="read_aloud_source_speed">源级语速</string>
+    <string name="read_aloud_source_speed_summary">0-80，10 = 1.0 倍；留空则用全局语速</string>
+    <string name="read_aloud_synthesis_threads">合成并发数</string>
+    <string name="read_aloud_synthesis_threads_summary">1-8，不应超过该源自身的上限</string>
     <string name="stream_read_aloud_audio">流式播放音频</string>
     <string name="stream_read_aloud_audio_summary">即边下边播，网络不好时播放会断断续续，仅TTS源有效</string>
     <string name="speak_engine">朗读引擎</string>

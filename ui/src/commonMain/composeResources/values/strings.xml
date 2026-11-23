@@ -83,6 +83,21 @@
     <string name="pref_media_button_per_next_summary">Previous Paragraph|Next Paragraph/Previous Chapter|Next Chapter</string>
     <string name="read_aloud_by_page">Speak by pages</string>
     <string name="read_aloud_by_page_summary">Turning pages in time, with a pause when the page is turned</string>
+    <string name="read_aloud_category_play">Playback</string>
+    <string name="read_aloud_category_engine">Engine</string>
+    <string name="read_aloud_category_split">Splitting</string>
+    <string name="read_aloud_keep_on_exit">Keep speaking after leaving reader</string>
+    <string name="read_aloud_keep_on_exit_summary">Continue in background when you leave the reading page</string>
+    <string name="read_aloud_split_mode">Split mode</string>
+    <string name="read_aloud_split_mode_summary">How chapter text is cut into speech units</string>
+    <string name="read_aloud_split_mode_paragraph">By paragraph</string>
+    <string name="read_aloud_split_mode_sentence">By sentence</string>
+    <string name="read_aloud_split_symbols">Extra split symbols</string>
+    <string name="read_aloud_split_symbols_summary">Characters treated as sentence ends, appended to the default set</string>
+    <string name="read_aloud_source_speed">Source speed</string>
+    <string name="read_aloud_source_speed_summary">0-80, 10 = 1.0x; empty = follow global speed</string>
+    <string name="read_aloud_synthesis_threads">Synthesis concurrency</string>
+    <string name="read_aloud_synthesis_threads_summary">1-8, should not exceed the source's own limit</string>
     <string name="stream_read_aloud_audio">Stream audio playback</string>
     <string name="stream_read_aloud_audio_summary">Play while downloading, may stutter when network is poor, only valid for TTS sources</string>
     <string name="speak_engine">Speak Engine</string>
