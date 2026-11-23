@@ -41,8 +41,15 @@ multiplatformMarkdown = "0.41.0"
 # 由 legado.compose 约定插件的 ComponentMetadataRule 统一剔除 coil3 组件元数据中的 skiko 依赖。
 # 升级守卫: 未来升级 CMP 或 coil 时, 须在 :desktop 端验证图片解码 (SkiaImageDecoder) 运行时兼容性。
 # 桌面视频播放引擎: open-ani/mediamp (Compose Multiplatform 播放抽象, 替代自研 libmpv 直通渲染)。
-# 0.3.0 于 2026-08-09 发布 (基于 CMP 1.11 基线), 与 CMP 1.11.1 + Kotlin 2.3.20 匹配。
-mediamp = "0.3.0"
+# 版本必须与 CMP 基线同代: 0.3.0 的 desktop 制品依赖 CMP 1.10.1, 其 MpvMediampPlayerSurface
+# 还引用 androidx.compose.ui.window.LocalWindow —— 该类在 CMP 1.12 已被移除, ProGuard 会报
+#   Warning: ...MpvMediampPlayerSurface_desktopKt: can't find referenced class ...LocalWindowKt
+# 并以 "Please correct the above warnings first" 退出 1 (桌面三端 packageRelease 全挂)。
+# 0.5.3 依赖 CMP 1.12.0, 全 jar 零 LocalWindow 引用; API 门面 (MediampPlayer/MPVHandle/
+# PlaybackSpeed/UriMediaData/MediampPlayerSurface/errorOrNull) 源码层不变。
+# 升级时: 必须同时在 desktop/build.gradle.kts 的 mediaRuntimeSha1ByRelease 补新版本五个平台
+# 的 jar SHA-1, 否则配置期直接报错。
+mediamp = "0.5.3"
 # 必须与 cmp 基线匹配 (CMP 1.11.x ↔ JetBrains lifecycle 2.10.0;
 # CMP 1.10.x ↔ 2.9.4)。Android target 不再单独钉 androidx foundation:
 # CMP 1.11.1 的安卓映射即 androidx foundation 1.11.2 (含 1.11 的 ActionMode

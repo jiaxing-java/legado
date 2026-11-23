@@ -128,6 +128,15 @@ private val mediaRuntimeSha1ByRelease: Map<String, Map<String, String>> = mapOf(
         "macos-x64" to "78ce63a55e433a1dc041d56d72f90829270c7380",
         "macos-arm64" to "7ceb34bd7269baaf64dc1f304a9ef1a4ee5add2b",
     ),
+    // 0.5.3: 与 CMP 1.12 同代 (0.3.0 依赖 CMP 1.10.1, 其 Surface 引用了 CMP 1.12 已删除的
+    // LocalWindow, ProGuard 因此拒绝出包)。值取自 2026-11-23 Maven Central 各 .jar.sha1。
+    "0.5.3" to mapOf(
+        "windows-x64" to "924119bcc7a5c212c568b18ecf2c99e3c45a9421",
+        "windows-arm64" to "6374dcc93e262a0baf6ebc292341d35cce9bf988",
+        "linux-x64" to "2853c6773ed4976c4e6f3d1ac48cf9a9a289646f",
+        "macos-x64" to "ee90062b86da1234463ded3b1e796253460c96c1",
+        "macos-arm64" to "adfa8fa8e1632eae333ddd092ab5fa0fd4d3dcdc",
+    ),
 )
 
 val mediaRuntimeVersion = libs.versions.mediamp.get()
@@ -211,10 +220,10 @@ dependencies {
     //   定), 并不传递引入, 必须显式 runtimeOnly 声明; 下方按构建平台固定单工件,
     //   loader 运行时按当前 OS/arch 解包加载, 无需用户安装 mpv
     // - 防盗链: UriMediaData(uri, headers) 原生透传 User-Agent/Referer/http-header-fields
-    // mediamp 0.3.0 的 POM 硬声明 material-icons-extended(-desktop) 传递依赖 (库自带的播放 UI 图标,
+    // mediamp 的 POM 硬声明 material-icons-extended(-desktop) 传递依赖 (库自带的播放 UI 图标,
     // 本项目播放界面自绘, 不用它的图标; 实测 mediamp-api/mpv 各 jar 字节码零引用 icons 类, 排除安全)。
     // 该依赖 37MB 且数千图标类, 必须排除, 否则直接进 jpackage 产物 (2026-08-18 实测 shrunk jar 里
-    // usage.txt 有 11398 条 material.icons 删除记录即其证据)。
+    // usage.txt 有 11398 条 material.icons 删除记录即其证据)。0.5.3 仍未移除该声明, 排除继续生效。
     implementation(libs.mediamp.mpv) {
         exclude(group = "org.jetbrains.compose.material", module = "material-icons-extended")
         exclude(
