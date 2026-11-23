@@ -1,5 +1,6 @@
 package io.legado.app.data
 
+import io.legado.app.data.dao.*
 import java.io.File
 
 /**
@@ -52,6 +53,16 @@ class TestDbAccessor(private val db: AppDatabase) : AppDbAccessor {
     override val bookmarkDao get() = db.bookmarkDao
     override val searchKeywordDao get() = db.searchKeywordDao
     override val keyboardAssistsDao get() = db.keyboardAssistsDao
+
+    // ---- v90: 朗读/漫画新增 DAO ----
+    override val castCharacterDao get() = db.castCharacterDao
+    override val voicePoolDao get() = db.voicePoolDao
+    override val readAloudVoiceDao get() = db.readAloudVoiceDao
+    override val bgmPoolDao get() = db.bgmPoolDao
+    override val cloudTtsEngineDao get() = db.cloudTtsEngineDao
+    override val readAloudAudioDownloadDao get() = db.readAloudAudioDownloadDao
+    override val exactChapterPageCountDao get() = db.exactChapterPageCountDao
+    override val regexCastDao get() = db.regexCastDao
     override suspend fun <R> runInTransactionSuspending(block: suspend () -> R): R = block()
 
     override suspend fun <R> runInTransactionSuspending(

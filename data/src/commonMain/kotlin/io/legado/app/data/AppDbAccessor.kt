@@ -3,6 +3,14 @@ package io.legado.app.data
 import androidx.room3.RoomDatabase
 import androidx.room3.immediateTransaction
 import androidx.room3.useWriterConnection
+import io.legado.app.data.dao.BgmPoolDao
+import io.legado.app.data.dao.CastCharacterDao
+import io.legado.app.data.dao.CloudTtsEngineDao
+import io.legado.app.data.dao.ExactChapterPageCountDao
+import io.legado.app.data.dao.ReadAloudAudioDownloadDao
+import io.legado.app.data.dao.ReadAloudVoiceDao
+import io.legado.app.data.dao.RegexCastDao
+import io.legado.app.data.dao.VoicePoolDao
 import io.legado.app.data.dao.BookChapterDao
 import io.legado.app.data.dao.BookDao
 import io.legado.app.data.dao.BookGroupDao
@@ -88,6 +96,16 @@ interface AppDbAccessor {
 
     /** 键盘助手 DAO (KeyboardToolbar / 备份恢复用)。 */
     val keyboardAssistsDao: KeyboardAssistsDao
+
+    // ---- v90: 多角色朗读 / 云 TTS / 背景音乐 / 分页计数 ----
+    val castCharacterDao: CastCharacterDao
+    val voicePoolDao: VoicePoolDao
+    val readAloudVoiceDao: ReadAloudVoiceDao
+    val bgmPoolDao: BgmPoolDao
+    val cloudTtsEngineDao: CloudTtsEngineDao
+    val readAloudAudioDownloadDao: ReadAloudAudioDownloadDao
+    val exactChapterPageCountDao: ExactChapterPageCountDao
+    val regexCastDao: RegexCastDao
 
     /**
      * suspend 版本的事务执行 (KMP 安全, Native 端无死锁风险)。

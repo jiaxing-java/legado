@@ -35,6 +35,23 @@ data class HttpTTS(
     @ColumnInfo(defaultValue = "0")
     override var enableDangerousApi: Boolean? = false,
     var loginCheckJs: String? = null,
+    /**
+     * 源级语速，0..80，实际倍速 = (speed + 5) / 10；null = 该源未声明，沿用全局语速。
+     *
+     * 与全局语速的分工：源自己声明的是"这个接口合成的天然语速"（各家接口对
+     * `{{speakSpeed}}` 的解释不同，5 = 1.0 倍是源作者的标定值），
+     * 用户的语速滑杆作用在播放层，两者不叠乘到同一个参数上。
+     * 仅在源接口支持 `{{speakSpeed}}` 时影响合成结果。
+     */
+    var speed: Int? = null,
+    /**
+     * 源自己声明的合成并发上限，1..8。
+     *
+     * 外部源（含参考实现导出的 httpTTS.json）会带这个字段，导入时保留；
+     * 实时、试听、预合成共用此源的配额（见 HttpTtsSynthesisLimiter）。
+     */
+    @ColumnInfo(defaultValue = "1")
+    var synthesisThreadCount: Int = 1,
     @ColumnInfo(defaultValue = "0")
     var lastUpdateTime: Long = systemCurrentTimeMillis()
 ) : BaseSource {
@@ -52,6 +69,10 @@ data class HttpTTS(
     }
 
     @Suppress("unused")
-    companion object
+    companion object {
+
+        /** 源级合成并发上限的合法上界（与朗读设置里全局并发的取值范围一致）。 */
+        const val MAX_SYNTHESIS_THREAD_COUNT = 8
+    }
 }
 

@@ -13,37 +13,66 @@ import io.legado.app.data.dao.BookGroupDao
 import io.legado.app.data.dao.BookSourceDao
 import io.legado.app.data.dao.BookmarkDao
 import io.legado.app.data.dao.CacheDao
+import io.legado.app.data.dao.CastCharacterDao
+import io.legado.app.data.dao.BgmPoolDao
+import io.legado.app.data.dao.CloudTtsEngineDao
 import io.legado.app.data.dao.CookieDao
 import io.legado.app.data.dao.DictRuleDao
+import io.legado.app.data.dao.ExactChapterPageCountDao
 import io.legado.app.data.dao.HttpTTSDao
 import io.legado.app.data.dao.KeyboardAssistsDao
 import io.legado.app.data.dao.KeywordHighlightDao
+import io.legado.app.data.dao.ReadAloudAudioDownloadDao
+import io.legado.app.data.dao.ReadAloudVoiceDao
 import io.legado.app.data.dao.ReadRecordDao
+import io.legado.app.data.dao.RegexCastDao
 import io.legado.app.data.dao.ReplaceRuleDao
 import io.legado.app.data.dao.RuleSubDao
 import io.legado.app.data.dao.SearchKeywordDao
 import io.legado.app.data.dao.ServerDao
 import io.legado.app.data.dao.SourceFilterRuleDao
 import io.legado.app.data.dao.TxtTocRuleDao
+import io.legado.app.data.dao.VoicePoolDao
+import io.legado.app.data.entities.BgmPoolEntity
+import io.legado.app.data.entities.BgmPoolGroupEntity
+import io.legado.app.data.entities.BgmPoolMember
+import io.legado.app.data.entities.BgmSceneMark
+import io.legado.app.data.entities.BgmTrackEntity
 import io.legado.app.data.entities.Book
+import io.legado.app.data.entities.BookCastMemory
 import io.legado.app.data.entities.BookChapter
 import io.legado.app.data.entities.BookGroup
 import io.legado.app.data.entities.BookSource
 import io.legado.app.data.entities.BookSourcePart
+import io.legado.app.data.entities.BookVoiceBindingEntity
 import io.legado.app.data.entities.Bookmark
 import io.legado.app.data.entities.Cache
+import io.legado.app.data.entities.CastCharacter
+import io.legado.app.data.entities.ChapterRoleAssignment
+import io.legado.app.data.entities.ChapterSpeechAnalysisEntity
+import io.legado.app.data.entities.ChapterSpeechSegmentEntity
+import io.legado.app.data.entities.CloudTtsEngineEntity
 import io.legado.app.data.entities.Cookie
 import io.legado.app.data.entities.DictRule
+import io.legado.app.data.entities.ExactChapterPageCountEntity
 import io.legado.app.data.entities.HttpTTS
 import io.legado.app.data.entities.KeyboardAssist
 import io.legado.app.data.entities.KeywordHighlight
+import io.legado.app.data.entities.ReadAloudAudioDownload
+import io.legado.app.data.entities.ReadAloudVoiceEntity
 import io.legado.app.data.entities.ReadRecord
+import io.legado.app.data.entities.RegexCastGroup
+import io.legado.app.data.entities.RegexCastRule
 import io.legado.app.data.entities.ReplaceRule
 import io.legado.app.data.entities.RuleSub
 import io.legado.app.data.entities.SearchKeyword
 import io.legado.app.data.entities.Server
 import io.legado.app.data.entities.SourceFilterRule
 import io.legado.app.data.entities.TxtTocRule
+import io.legado.app.data.entities.VoiceEffectPreset
+import io.legado.app.data.entities.VoicePoolEntity
+import io.legado.app.data.entities.VoicePoolGroupEntity
+import io.legado.app.data.entities.VoicePoolMember
 
 /**
  * AppDatabase 主体下沉 commonMain。
@@ -54,14 +83,26 @@ import io.legado.app.data.entities.TxtTocRule
  *   (官方 room3 的 migrate 是 suspend, 鸿蒙 CPF fork 不是)
  */
 @Database(
-    version = 89,
+    version = 90,
     exportSchema = true,
     entities = [Book::class, BookGroup::class, BookSource::class, BookChapter::class,
         ReplaceRule::class, SearchKeyword::class, Cookie::class,
         Bookmark::class, TxtTocRule::class, ReadRecord::class,
         HttpTTS::class, Cache::class,
         RuleSub::class, DictRule::class, KeyboardAssist::class, Server::class,
-        SourceFilterRule::class, KeywordHighlight::class],
+        SourceFilterRule::class, KeywordHighlight::class,
+        // ---- v90 新增: 多角色朗读 / 云 TTS / 背景音乐 / 分页计数 ----
+        // 表名与字段刻意与 MD3 保持一致, 便于将来备份互操作 (决策 D2)
+        CastCharacter::class, ChapterRoleAssignment::class, BookCastMemory::class,
+        VoicePoolGroupEntity::class, VoicePoolEntity::class, VoicePoolMember::class,
+        VoiceEffectPreset::class,
+        ReadAloudVoiceEntity::class, BookVoiceBindingEntity::class,
+        ChapterSpeechAnalysisEntity::class, ChapterSpeechSegmentEntity::class,
+        RegexCastGroup::class, RegexCastRule::class,
+        BgmPoolGroupEntity::class, BgmPoolEntity::class, BgmPoolMember::class,
+        BgmTrackEntity::class, BgmSceneMark::class,
+        ReadAloudAudioDownload::class, CloudTtsEngineEntity::class,
+        ExactChapterPageCountEntity::class],
     views = [BookSourcePart::class],
     autoMigrations = [
         AutoMigration(from = 83, to = 84),
@@ -70,6 +111,8 @@ import io.legado.app.data.entities.TxtTocRule
         AutoMigration(from = 86, to = 87),
         AutoMigration(from = 87, to = 88),
         AutoMigration(from = 88, to = 89),
+        // 89 -> 90 纯增表 (21 张), 无列变更, 可由 Room 自动生成 CREATE TABLE
+        AutoMigration(from = 89, to = 90),
     ]
 )
 // DATABASE 作用域注册 Book.Converters: iOS/ohos KSP 处理 BookChapter.ForeignKey 跨实体解析时,
@@ -102,6 +145,16 @@ abstract class AppDatabase : RoomDatabase() {
     abstract val keywordHighlightDao: KeywordHighlightDao
     abstract val serverDao: ServerDao
     abstract val sourceFilterRuleDao: SourceFilterRuleDao
+
+    // ---- v90 新增 ----
+    abstract val castCharacterDao: CastCharacterDao
+    abstract val voicePoolDao: VoicePoolDao
+    abstract val readAloudVoiceDao: ReadAloudVoiceDao
+    abstract val bgmPoolDao: BgmPoolDao
+    abstract val cloudTtsEngineDao: CloudTtsEngineDao
+    abstract val readAloudAudioDownloadDao: ReadAloudAudioDownloadDao
+    abstract val exactChapterPageCountDao: ExactChapterPageCountDao
+    abstract val regexCastDao: RegexCastDao
 
     companion object {
 

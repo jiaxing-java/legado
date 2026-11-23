@@ -125,7 +125,8 @@ object BackupShared {
         ReadBookConfigShared.configFileName,
         ReadBookConfigShared.shareConfigFileName,
         THEME_CONFIG_FILE_NAME,
-        "config.json"
+        "config.json",
+        ReadAloudBackup.FILE_NAME
     )
 
     /** autoBack 自身的互斥, 避免多入口并发触发自动备份。 */
@@ -305,6 +306,17 @@ object BackupShared {
             writeListToJson(appDb.keyboardAssistsDao.all(), "keyboardAssists.json")
             writeListToJson(appDb.dictRuleDao.all(), "dictRule.json")
             writeListToJson(appDb.sourceFilterRuleDao.all(), "sourceFilterRule.json")
+
+            // 1.1 多角色朗读 / 云 TTS / 背景音乐（v90 新增域，聚合为单文件）
+            // 这一域为空时不写文件，旧备份形状不变；写入失败不吞，与原版一致中止整次备份，
+            // 避免出现"备份成功但丢了一整块配置"。
+            currentCoroutineContext().ensureActive()
+            ReadAloudBackup.export(appDb)?.let { json ->
+                BackupFileOps.writeText(
+                    workDirPath + BackupFileOps.separator + ReadAloudBackup.FILE_NAME,
+                    json
+                )
+            }
 
             // 2. servers.json 加密 (与原版一致)
             GSON.toJson(appDb.serverDao.all()).let { json ->

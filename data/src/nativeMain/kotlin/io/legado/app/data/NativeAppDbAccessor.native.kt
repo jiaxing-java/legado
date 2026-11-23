@@ -18,6 +18,14 @@ import io.legado.app.data.dao.KeywordHighlightDao
 import io.legado.app.data.dao.ServerDao
 import io.legado.app.data.dao.SourceFilterRuleDao
 import io.legado.app.data.dao.TxtTocRuleDao
+import io.legado.app.data.dao.CastCharacterDao
+import io.legado.app.data.dao.VoicePoolDao
+import io.legado.app.data.dao.ReadAloudVoiceDao
+import io.legado.app.data.dao.BgmPoolDao
+import io.legado.app.data.dao.CloudTtsEngineDao
+import io.legado.app.data.dao.ReadAloudAudioDownloadDao
+import io.legado.app.data.dao.ExactChapterPageCountDao
+import io.legado.app.data.dao.RegexCastDao
 
 /**
  * iOS/鸿蒙 (Native target) 共用 [AppDbAccessor] 实现:
@@ -82,6 +90,16 @@ class NativeAppDbAccessor : AppDbAccessor {
 
     // KeyboardToolbar / 备份恢复用 (键盘助手)
     override val keyboardAssistsDao: KeyboardAssistsDao get() = appDb.keyboardAssistsDao
+
+    // ---- v90: 朗读/漫画新增 DAO ----
+    override val castCharacterDao get() = appDb.castCharacterDao
+    override val voicePoolDao get() = appDb.voicePoolDao
+    override val readAloudVoiceDao get() = appDb.readAloudVoiceDao
+    override val bgmPoolDao get() = appDb.bgmPoolDao
+    override val cloudTtsEngineDao get() = appDb.cloudTtsEngineDao
+    override val readAloudAudioDownloadDao get() = appDb.readAloudAudioDownloadDao
+    override val exactChapterPageCountDao get() = appDb.exactChapterPageCountDao
+    override val regexCastDao get() = appDb.regexCastDao
 
     // ---- AppDbAccessor 事务 ----
     // suspend 版本走 Room KMP 真事务, 与 desktop 端复用同一下沉实现

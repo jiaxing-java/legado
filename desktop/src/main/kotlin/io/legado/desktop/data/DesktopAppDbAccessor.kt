@@ -68,6 +68,16 @@ class DesktopAppDbAccessor : AppDbAccessor {
     // KeyboardToolbar / 备份恢复用 (键盘助手)
     override val keyboardAssistsDao get() = appDb.keyboardAssistsDao
 
+    // ---- v90: 朗读/漫画新增 DAO ----
+    override val castCharacterDao get() = appDb.castCharacterDao
+    override val voicePoolDao get() = appDb.voicePoolDao
+    override val readAloudVoiceDao get() = appDb.readAloudVoiceDao
+    override val bgmPoolDao get() = appDb.bgmPoolDao
+    override val cloudTtsEngineDao get() = appDb.cloudTtsEngineDao
+    override val readAloudAudioDownloadDao get() = appDb.readAloudAudioDownloadDao
+    override val exactChapterPageCountDao get() = appDb.exactChapterPageCountDao
+    override val regexCastDao get() = appDb.regexCastDao
+
     // ---- AppDbAccessor 事务 ----
     // suspend 版本走 Room KMP 真事务: 复用 commonMain 下沉的 [runInImmediateTransaction]
     // (useWriterConnection 把写连接放进协程上下文, block 内的 suspend DAO 会复用同一连接

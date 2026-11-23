@@ -197,6 +197,18 @@ object RestoreShared {
             currentCoroutineContext().ensureActive()
             restoreReadRecord(path)
 
+            // 1.1 多角色朗读 / 云 TTS / 背景音乐（v90 新增域）
+            // 包内缺该文件即旧备份，跳过；整包解析失败记日志不阻断其余域的恢复。
+            runCatching {
+                val castFile = path + sep + ReadAloudBackup.FILE_NAME
+                if (BackupFileOps.exists(castFile)) {
+                    ReadAloudBackup.restore(appDb, BackupFileOps.readText(castFile))
+                }
+            }.onFailure {
+                currentCoroutineContext().ensureActive()
+                AppLog.put("恢复朗读配置包出错\n${it.message}", it, tag = TAG)
+            }
+
             // 2. servers.json 解密 (若加密, 与原版同逻辑)
             runCatching {
                 val serversFile = path + sep + "servers.json"

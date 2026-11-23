@@ -121,6 +121,16 @@ object WebBookProvidersImpl :
     // KeyboardToolbar / 备份恢复用 (键盘助手)
     override val keyboardAssistsDao get() = appDb.keyboardAssistsDao
 
+    // ---- v90: 朗读/漫画新增 DAO ----
+    override val castCharacterDao get() = appDb.castCharacterDao
+    override val voicePoolDao get() = appDb.voicePoolDao
+    override val readAloudVoiceDao get() = appDb.readAloudVoiceDao
+    override val bgmPoolDao get() = appDb.bgmPoolDao
+    override val cloudTtsEngineDao get() = appDb.cloudTtsEngineDao
+    override val readAloudAudioDownloadDao get() = appDb.readAloudAudioDownloadDao
+    override val exactChapterPageCountDao get() = appDb.exactChapterPageCountDao
+    override val regexCastDao get() = appDb.regexCastDao
+
     // ---- AppDbAccessor 事务 ----
     // suspend 版本走 Room 真事务: useWriterConnection 把写连接放进协程上下文,
     // block 内的 suspend DAO 复用同一连接; immediateTransaction 对应 BEGIN IMMEDIATE, 异常自动回滚。
