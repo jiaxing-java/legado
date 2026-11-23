@@ -1864,4 +1864,21 @@ Windows: winget install shinchiro.mpv 或 scoop install mpv,
     <string name="dialog_preview_group_dialog">对话框</string>
     <string name="dialog_preview_group_sheet">底部弹层</string>
     <string name="dialog_preview_group_base">基础形制</string>
+    <string name="settings_search_title">搜索设置</string>
+    <string name="settings_search_hint">搜索设置项，如「语速」「字号」</string>
+    <string name="settings_search_prompt">输入关键词，搜索全部设置页</string>
+    <string name="settings_search_empty">没有匹配的设置项</string>
+    <string name="settings_search_count">共 %1$s 项</string>
+    <string name="settings_search_reader_only">仅阅读中</string>
+    <string name="settings_search_reader_only_message">「%1$s」只能从阅读界面打开：书架 → 打开书籍 → 阅读菜单 → 设置。</string>
+    <string name="settings_search_summary_theme">外观、布局、字号、封面、图标</string>
+    <string name="settings_search_summary_reading">翻页、动画、行距、缩进、全屏</string>
+    <string name="settings_search_summary_aloud">朗读引擎、语速、分段、后台播放</string>
+    <string name="settings_search_summary_other">语言、更新、网络、日志</string>
+    <string name="settings_search_summary_backup">WebDAV、备份恢复、同步</string>
+    <string name="settings_search_summary_cover">封面规则、阴影、描边、圆角</string>
+    <string name="settings_search_filter_hint">过滤当前页面</string>
+    <string name="settings_search_filter_count">显示 %1$s / %2$s 项</string>
+    <string name="settings_search_clear">清空</string>
+    <string name="settings_search_filter_empty">本页没有匹配的设置项</string>
 </resources>

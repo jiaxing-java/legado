@@ -54,6 +54,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.legado.app.constant.BottomNavTag
+import io.legado.app.ui.settings.search.SettingsSearchDialog
+import io.legado.app.ui.settings.search.SettingsSearchReach
 import io.legado.app.constant.EventBus
 import io.legado.app.data.AppDbProviders
 import io.legado.app.data.entities.BookGroup
@@ -161,8 +163,10 @@ import legado.ui.generated.resources.help
 import legado.ui.generated.resources.home_source_invalid
 import legado.ui.generated.resources.explore_option_invalidated
 import legado.ui.generated.resources.ic_help
+import legado.ui.generated.resources.ic_search
 import legado.ui.generated.resources.import_bookshelf
 import legado.ui.generated.resources.my
+import legado.ui.generated.resources.settings_search_title
 import legado.ui.generated.resources.ok
 import legado.ui.generated.resources.open_in_browser
 import legado.ui.generated.resources.select_file
@@ -1547,11 +1551,19 @@ private fun MyTabContent(navigator: AppNavigator) {
     var showWebServiceMenu by remember { mutableStateOf(false) }
     // 对照 MyFragment.onCompatOptionsItemSelected: menu_help → showHelp("appHelp")
     var showAppHelp by remember { mutableStateOf(false) }
+    // 设置搜索: 设置项已有 200+, 靠肉眼翻"我的"里的入口找「语速」这类词不现实
+    var showSettingsSearch by remember { mutableStateOf(false) }
+    // 朗读设置: 原先只能在阅读界面打开 (ReadAloudConfigDialogHost 自包含, 不依赖阅读状态),
+    // 由搜索结果直接弹出, 免得用户为了改 TTS 引擎先随便进一本书
+    var showReadAloudConfig by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize()) {
         // 顶栏 (对照 fragment_my_config.xml 的 TitleBar title=my + main_my.xml 的 help 图标);
         // tab 页无返回键, 故不用 AppTitleBar (它恒渲染返回箭头), 复刻其视觉容器
-        MyTabTitleBar(onHelp = { showAppHelp = true })
+        MyTabTitleBar(
+            onSearch = { showSettingsSearch = true },
+            onHelp = { showAppHelp = true },
+        )
         MyConfigScreen(
             webServiceChecked = webServiceAddress.isNotEmpty(),
             webServiceSummary = webServiceSummary,
@@ -1595,6 +1607,27 @@ private fun MyTabContent(navigator: AppNavigator) {
         HelpDialog("appHelp") { showAppHelp = false }
     }
 
+    // 设置搜索: 结果按可达方式分发。Push 直接入栈已有路由; 朗读设置就地弹自包含对话框;
+    // 「仅阅读中」的那条不在这里处理 (对话框内部已弹说明, 不会回调到这里)。
+    if (showSettingsSearch) {
+        SettingsSearchDialog(
+            onDismissRequest = { showSettingsSearch = false },
+            onOpenPage = { page ->
+                showSettingsSearch = false
+                when (val reach = page.reach) {
+                    is SettingsSearchReach.Push -> navigator.push(reach.route)
+                    SettingsSearchReach.ReadAloudDialog -> showReadAloudConfig = true
+                    SettingsSearchReach.ReaderOnly -> Unit
+                }
+            },
+        )
+    }
+
+    // 朗读设置 (自包含, 不依赖阅读状态; 与阅读页内弹出的宿主是同一个)
+    if (showReadAloudConfig) {
+        ReadAloudConfigDialogHost(onDismiss = { showReadAloudConfig = false })
+    }
+
     // web 服务长按菜单 (对照 app 端 selector: 复制地址 / 浏览器打开)
     if (showWebServiceMenu) {
         val url = webServiceAddress.takeIf { it.isNotEmpty() }
@@ -1621,7 +1654,7 @@ private fun MyTabContent(navigator: AppNavigator) {
  * 背景/insets/E-Ink 分割线取值与其一致。
  */
 @Composable
-private fun MyTabTitleBar(onHelp: () -> Unit) {
+private fun MyTabTitleBar(onSearch: () -> Unit, onHelp: () -> Unit) {
     val colors = AppTheme.colors
     val eInk = LocalEInk.current
     Box(Modifier.fillMaxWidth().then(if (eInk) Modifier else Modifier.platformStatusBarPadding())) {
@@ -1637,6 +1670,13 @@ private fun MyTabTitleBar(onHelp: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = onSearch) {
+                Icon(
+                    painter = painterResource(Res.drawable.ic_search),
+                    contentDescription = stringResource(Res.string.settings_search_title),
+                    tint = colors.primaryText,
+                )
+            }
             IconButton(onClick = onHelp) {
                 Icon(
                     painter = painterResource(Res.drawable.ic_help),

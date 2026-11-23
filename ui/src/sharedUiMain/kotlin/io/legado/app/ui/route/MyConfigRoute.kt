@@ -9,9 +9,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material.Icon
+import androidx.compose.material.IconButton
 import androidx.compose.ui.Modifier
+import org.jetbrains.compose.resources.painterResource
 import io.legado.app.ui.compose.component.AppSelectorDialog
 import io.legado.app.ui.compose.component.AppTitleBar
+import io.legado.app.ui.compose.theme.AppTheme
 import io.legado.app.ui.book.manga.extension.MangaExtensionServiceProviders
 import io.legado.app.ui.book.tvbox.TvBoxServiceProviders
 import io.legado.app.ui.main.my.MyConfigScreen
@@ -21,10 +25,14 @@ import io.legado.app.ui.root.AppRoute
 import io.legado.app.ui.root.PlatformCapabilityProviders
 import io.legado.app.ui.root.RouteEntry
 import io.legado.app.ui.root.ScreenModelStore
+import io.legado.app.ui.settings.search.SettingsSearchDialog
+import io.legado.app.ui.settings.search.SettingsSearchReach
 import io.legado.app.web.WebServerPlatforms
 import legado.ui.generated.resources.Res
 import legado.ui.generated.resources.copy_url
+import legado.ui.generated.resources.ic_search
 import legado.ui.generated.resources.my
+import legado.ui.generated.resources.settings_search_title
 import legado.ui.generated.resources.open_in_browser
 import legado.ui.generated.resources.web_service_desc
 import org.jetbrains.compose.resources.stringResource
@@ -59,6 +67,9 @@ fun MyConfigRoute(
     // Web 服务地址: 空串=未运行 (对照原版 observeEvent<String>(WEB_SERVICE) 后回读 hostAddress)
     val webServiceAddress by caps.webServiceAddress.collectAsState()
     var showWebServiceMenu by remember { mutableStateOf(false) }
+    // 设置搜索 / 朗读设置 (ReadAloudConfigDialogHost 自包含, 不依赖阅读状态)
+    var showSettingsSearch by remember { mutableStateOf(false) }
+    var showReadAloudConfig by remember { mutableStateOf(false) }
 
     // push 打开时自带顶栏 + 返回按钮 (对照其他 push 型路由如 ThemeConfigRoute;
     // tab 态不经本路由, 由 MainRoute 的 MyTabTitleBar 提供无返回顶栏)
@@ -66,6 +77,15 @@ fun MyConfigRoute(
         AppTitleBar(
             title = stringResource(Res.string.my),
             onBack = { navigator.pop() },
+            actions = {
+                IconButton(onClick = { showSettingsSearch = true }) {
+                    Icon(
+                        painter = painterResource(Res.drawable.ic_search),
+                        contentDescription = stringResource(Res.string.settings_search_title),
+                        tint = AppTheme.colors.primaryText,
+                    )
+                }
+            },
         )
         MyConfigScreen(
             webServiceChecked = webServiceAddress.isNotEmpty(),
@@ -105,6 +125,25 @@ fun MyConfigRoute(
             onDialogPreview = DialogPreviewLaunchers.getOrNull(),
             // 原版 pref_main.xml 无 RSS 条目, 订阅入口在主界面底栏 tab, 此处不渲染
         )
+    }
+
+    // 设置搜索: 与「我的」tab 共用同一份结果分发逻辑
+    if (showSettingsSearch) {
+        SettingsSearchDialog(
+            onDismissRequest = { showSettingsSearch = false },
+            onOpenPage = { page ->
+                showSettingsSearch = false
+                when (val reach = page.reach) {
+                    is SettingsSearchReach.Push -> navigator.push(reach.route)
+                    SettingsSearchReach.ReadAloudDialog -> showReadAloudConfig = true
+                    SettingsSearchReach.ReaderOnly -> Unit
+                }
+            },
+        )
+    }
+
+    if (showReadAloudConfig) {
+        ReadAloudConfigDialogHost(onDismiss = { showReadAloudConfig = false })
     }
 
     // web 服务长按菜单 (对照 MyTab context.selector: 复制地址 / 浏览器打开)

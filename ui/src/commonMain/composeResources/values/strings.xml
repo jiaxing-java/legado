@@ -1798,4 +1798,21 @@
     <string name="dialog_preview_group_dialog">Dialogs</string>
     <string name="dialog_preview_group_sheet">Bottom sheets</string>
     <string name="dialog_preview_group_base">Base shells</string>
+    <string name="settings_search_title">Search settings</string>
+    <string name="settings_search_hint">Search settings, e.g. speed, font size</string>
+    <string name="settings_search_prompt">Type a keyword to search every setting page</string>
+    <string name="settings_search_empty">No matching setting</string>
+    <string name="settings_search_count">%1$s result(s)</string>
+    <string name="settings_search_reader_only">Reading only</string>
+    <string name="settings_search_reader_only_message">%1$s can only be opened while reading: Bookshelf → open a book → reader menu → Settings.</string>
+    <string name="settings_search_summary_theme">Appearance, layout, font size, cover, icon</string>
+    <string name="settings_search_summary_reading">Page turn, animation, line spacing, indent, full screen</string>
+    <string name="settings_search_summary_aloud">TTS engine, speech speed, splitting, background play</string>
+    <string name="settings_search_summary_other">Language, update, network, logs</string>
+    <string name="settings_search_summary_backup">WebDAV, backup and restore, sync</string>
+    <string name="settings_search_summary_cover">Cover rule, shadow, stroke, corner</string>
+    <string name="settings_search_filter_hint">Filter this page</string>
+    <string name="settings_search_filter_count">%1$s of %2$s</string>
+    <string name="settings_search_clear">Clear</string>
+    <string name="settings_search_filter_empty">Nothing on this page matches</string>
 </resources>
