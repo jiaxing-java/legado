@@ -16,6 +16,7 @@ import io.legado.app.constant.AppLog
 import io.legado.app.constant.BookType
 import io.legado.app.constant.EventBus
 import io.legado.app.data.AppDbProviders
+import io.legado.app.data.entities.SearchBook
 import io.legado.app.data.entities.Book
 import io.legado.app.help.IntentData
 import io.legado.app.help.book.BookHelpShared
@@ -556,6 +557,11 @@ fun BookInfoRoute(
         override fun onDispatchIntroAction(action: String) {
             val js = action.trim().ifEmpty { return }
             PlatformCapabilityProviders.get().evalIntroAction(state.book ?: book, js)
+        }
+
+        // 关联推荐位点某一本: 按"搜索书"开详情 (未入库, 详情页按搜索来源做来源对账)
+        override fun onRelatedBookClick(book: SearchBook) {
+            navigator.push(AppRoute.BookInfo(book.toRouteRef()))
         }
 
         // 查看简介图片 (同封面: 带书源身份, 简介图防盗链/解密与封面同链路)

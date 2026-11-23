@@ -18,7 +18,14 @@ data class BookInfoRule(
     var tocUrl: String? = null,
     var wordCount: String? = null,
     var canReName: String? = null,
-    var downloadUrls: String? = null
+    var downloadUrls: String? = null,
+    /**
+     * 关联书籍模块定义（JSON 数组，元素形如 `{"title":"同类推荐","url":"..."}`）。
+     *
+     * 与 [bookSource.ruleBookInfo] 同一条 JSON 字符串载体，因此源编辑器里可直接手写；
+     * 解析见 `model/webBook/RelatedBooks.kt`。可选内容，缺省不显示推荐位。
+     */
+    var relatedBooks: String? = null
 ) {
 
     companion object {

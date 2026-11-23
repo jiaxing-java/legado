@@ -19,6 +19,7 @@ import io.legado.app.help.coroutine.IoDispatcher
 import io.legado.app.help.toast.Toasters
 import io.legado.app.lib.webdav.ObjectNotFoundException
 import io.legado.app.model.fileBook.FileBook
+import io.legado.app.model.webBook.RelatedBooks
 import io.legado.app.model.webBook.WebBook
 import io.legado.app.ui.root.ImportStageOwner
 import io.legado.app.ui.root.PlatformCapabilityProviders
@@ -319,6 +320,39 @@ class BookInfoScreenModel(initialBook: Book? = null) : ScreenModel {
             }
             // 对照 app 端 showBook + upLoading(false, chapterList)
             upShowBook(book, toc, errorLoadToc)
+            // 推荐位独立加载, 不等它: 详情主体已经可见, 推荐位慢不该让页面一直转圈
+            loadRelatedBooks(book, bookSource)
+        }
+    }
+
+    private var relatedBooksJob: Job? = null
+
+    /**
+     * 加载关联书籍推荐位 (源没配 `ruleBookInfo.relatedBooks` 时什么都不做)。
+     *
+     * 独立 job + 独立失败: 推荐位是可选内容, 请求慢或某条规则写错都不该拖住简介与目录。
+     * 每次刷新先清旧结果 —— 换源后还挂着上一本书的推荐, 用户会以为点错了书。
+     */
+    private fun loadRelatedBooks(book: Book, bookSource: BookSource?) {
+        relatedBooksJob?.cancel()
+        relatedBooksJob = null
+        if (_state.value.relatedBooks.isNotEmpty()) {
+            _state.update { it.copy(relatedBooks = emptyList()) }
+        }
+        if (bookSource == null || book.isLocal) return
+        // 提前短路: 绝大多数源没有这个规则, 不该为此起一个空协程
+        if (bookSource.bookInfoRule.relatedBooks.isNullOrBlank()) return
+        relatedBooksJob = scope.launch(IoDispatcher) {
+            val modules = try {
+                RelatedBooks.load(book, bookSource)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                currentCoroutineContext().ensureActive()
+                AppLog.put("关联书籍加载失败\n${e.message}", e)
+                emptyList()
+            }
+            _state.update { it.copy(relatedBooks = modules) }
         }
     }
 

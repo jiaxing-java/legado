@@ -6,6 +6,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -24,6 +25,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.InlineTextContent
@@ -57,6 +60,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,8 +68,11 @@ import com.fleeksoft.ksoup.Ksoup
 import com.fleeksoft.ksoup.nodes.Element
 import com.fleeksoft.ksoup.nodes.TextNode
 import io.legado.app.data.entities.Book
+import io.legado.app.data.entities.SearchBook
 import io.legado.app.help.book.isVideo
 import io.legado.app.help.book.isWebFile
+import io.legado.app.model.webBook.RelatedBooks
+import io.legado.app.ui.bookshelf.SharedBookCover
 import io.legado.app.ui.compose.component.AppDropdownMenu
 import io.legado.app.ui.compose.component.AppFilletTextButton
 import io.legado.app.ui.compose.component.AppMenuCheckbox
@@ -186,6 +193,13 @@ data class BookInfoUiState(
     val isDarkTheme: Boolean,
     val isEInkMode: Boolean = false,
     val menuState: BookInfoMenuState,
+    /**
+     * 关联书籍模块（源在 `ruleBookInfo.relatedBooks` 里声明才有）；空 = 不显示推荐位。
+     *
+     * 与详情主体分开加载：推荐位请求失败/慢不该拖住简介和目录，所以它是独立 job、
+     * 独立失败，模块级别各自容错（见 `model/webBook/RelatedBooks`）。
+     */
+    val relatedBooks: List<RelatedBooks.Module> = emptyList(),
 )
 
 /** 溢出菜单项显隐控制 (对照原 onMenuOpened 内联求值的可见性条件) */
@@ -247,6 +261,8 @@ interface BookInfoUiActions {
     fun onDispatchIntroAction(action: String)
     /** 简介内 <img src="..."> 点击查看大图 */
     fun onShowPhoto(src: String)
+    /** 关联推荐位里点某一本：打开它的详情页（同源探索结果，走搜索书的详情路径） */
+    fun onRelatedBookClick(book: SearchBook)
 }
 
 /**
@@ -394,6 +410,7 @@ private fun PortraitLayout(
                             state, actions, introImageSlot,
                             Modifier.padding(start = DesignTokens.spacingLg, end = DesignTokens.spacingDefault, bottom = DesignTokens.spacingDefault),
                         )
+                        RelatedBooksSection(state.relatedBooks)
                         // 底部按钮悬浮，滚动内容留出等高空间(原 scrollView bottom padding)
                         Spacer(Modifier.height(64.dp))
                         Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
@@ -469,6 +486,7 @@ private fun LandscapeLayout(
                     ActionsRow(state, actions, Modifier)
                     KindsSection(state, actions, Modifier)
                     IntroSection(state, actions, introImageSlot, Modifier.padding(start = DesignTokens.spacingDefault, bottom = DesignTokens.spacingDefault))
+                    RelatedBooksSection(state.relatedBooks)
                     Spacer(Modifier.height(64.dp))
                     Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
                 }
@@ -1126,3 +1144,81 @@ private fun ArcoSolidButton(
         Text(text, color = textColor, fontSize = 14.sp, maxLines = 1)
     }
 }
+
+/**
+ * 关联书籍推荐位（源在 `ruleBookInfo.relatedBooks` 里声明才有）。
+ *
+ * 一个模块一行：模块标题 + 横向书单。用横向滚动而不是网格，是因为推荐位在详情页底部、
+ * 模块数量不定（1~N），纵向堆网格会把页面拉得很长；横向也让"某一模块有几十本"不至于撑爆。
+ *
+ * 模块为空时整段不渲染（[modules] 为空直接 return），因此没有相关规则的源不会多出空白。
+ */
+@Composable
+private fun RelatedBooksSection(
+    modules: List<RelatedBooks.Module>,
+    modifier: Modifier = Modifier,
+) {
+    if (modules.isEmpty()) return
+    val actions = LocalBookInfoActions.current
+    val colors = AppTheme.colors
+    Column(modifier.fillMaxWidth()) {
+        modules.forEach { module ->
+            if (module.title.isNotBlank()) {
+                Text(
+                    text = module.title,
+                    color = colors.primaryText,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(
+                        start = DesignTokens.spacingLg,
+                        end = DesignTokens.spacingLg,
+                        top = DesignTokens.spacingDefault,
+                        bottom = DesignTokens.spacingDefault,
+                    ),
+                )
+            }
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = DesignTokens.spacingLg),
+                horizontalArrangement = Arrangement.spacedBy(DesignTokens.spacingMd),
+            ) {
+                items(module.books, key = { it.bookUrl }) { searchBook ->
+                    Column(
+                        Modifier
+                            .width(RELATED_BOOK_ITEM_WIDTH)
+                            .listItemFocus()
+                            .clickable { actions.onRelatedBookClick(searchBook) },
+                    ) {
+                        SharedBookCover(
+                            book = searchBook.toBook(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(RELATED_BOOK_COVER_HEIGHT)
+                                .clip(DesignTokens.shapeDefault),
+                        )
+                        Text(
+                            text = searchBook.name,
+                            color = colors.primaryText,
+                            fontSize = 12.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = DesignTokens.spacingXs),
+                        )
+                        Text(
+                            text = searchBook.author,
+                            color = colors.secondaryText,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 推荐位单项宽度/封面高度（封面 3:4 略收，两行书名也放得下） */
+private val RELATED_BOOK_ITEM_WIDTH = 88.dp
+private val RELATED_BOOK_COVER_HEIGHT = 112.dp
