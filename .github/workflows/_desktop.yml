@@ -47,6 +47,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          # modules/miuix 是皮肤层子模块 (见 .gitmodules); 不拉会在配置阶段直接失败:
+          # "Miuix 子模块未初始化, 请先执行: git submodule update --init modules/miuix"
+          submodules: recursive
       - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
