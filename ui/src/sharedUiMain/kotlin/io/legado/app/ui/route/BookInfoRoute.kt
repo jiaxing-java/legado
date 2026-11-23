@@ -22,6 +22,7 @@ import io.legado.app.help.IntentData
 import io.legado.app.help.book.BookHelpShared
 import io.legado.app.help.book.addType
 import io.legado.app.help.book.changeSourceTo
+import io.legado.app.help.book.findShelfDuplicate
 import io.legado.app.help.book.isAudio
 import io.legado.app.help.book.isImage
 import io.legado.app.help.book.isLocal
@@ -48,6 +49,8 @@ import io.legado.app.ui.book.manage.ShelfDeleteRequest
 import io.legado.app.ui.book.manage.confirmShelfDelete
 import io.legado.app.ui.book.manage.startShelfDelete
 import io.legado.app.ui.book.search.SearchScope
+import io.legado.app.ui.compose.component.AlertButton
+import io.legado.app.ui.compose.component.AppAlertDialog
 import io.legado.app.ui.compose.theme.AppTheme
 import io.legado.app.ui.root.AppNavigator
 import io.legado.app.ui.root.AppOverlay
@@ -79,6 +82,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import legado.ui.generated.resources.Res
+import legado.ui.generated.resources.bookshelf_duplicate_add
+import legado.ui.generated.resources.bookshelf_duplicate_message
+import legado.ui.generated.resources.bookshelf_duplicate_title
+import legado.ui.generated.resources.cancel
 import legado.ui.generated.resources.clear_cache_success
 import legado.ui.generated.resources.error_load_toc
 import legado.ui.generated.resources.need_more_time_load_content
@@ -243,10 +250,26 @@ fun BookInfoRoute(
     // 下架确认框待决请求 (确认框由本页弹时写入, 用户选完清空); 自带确认框的 Android 端不写入
     var shelfDeleteRequest by remember { mutableStateOf<ShelfDeleteRequest?>(null) }
 
+    // 加书架查重: 命中时先问, 不为 null 即弹窗待决
+    var shelfDuplicate by remember { mutableStateOf<Book?>(null) }
+
     // 书架结果: null=下架成功 (书已删, 返回), true=已上架, false=失败
     val onShelfResult: (Boolean?) -> Unit = { result ->
         if (result == null) navigator.pop(RouteResultPayload.Deleted)
         else screenModel.dispatch(BookInfoUiEvent.UpdateBookshelf(result))
+    }
+
+    // 真正执行上架: 查重通过、或用户在查重弹窗里选了"仍然加入"后都走这一条
+    val addToShelfNow: (Book) -> Unit = { target ->
+        PlatformCapabilityProviders.get().toggleBookshelf(
+            target, inBookshelf = false,
+            scope = screenModel.pageScope,
+            onComplete = onShelfResult,
+            onWaitDialog = { show, handle -> screenModel.upWaitDialog(show, handle) },
+            stages = screenModel.importStages,
+            // 上架时把已装载的目录一并落库 (对照原 addToBookshelf), 否则进阅读页要回源再拉一次
+            chapters = screenModel.loadedChapterList,
+        )
     }
 
     val actions = object : BookInfoUiActions {
@@ -499,17 +522,16 @@ fun BookInfoRoute(
         // 书架: 上架/下架, 委托平台 (下架按两端分工: 确认框由能力面或本页弹)
         override fun onShelfClick() {
             val b = state.book ?: book
-            val platform = PlatformCapabilityProviders.get()
             if (!state.inBookshelf) {
-                platform.toggleBookshelf(
-                    b, inBookshelf = false,
-                    scope = screenModel.pageScope,
-                    onComplete = onShelfResult,
-                    onWaitDialog = { show, handle -> screenModel.upWaitDialog(show, handle) },
-                    stages = screenModel.importStages,
-                    // 上架时把已装载的目录一并落库 (对照原 addToBookshelf), 否则进阅读页要回源再拉一次
-                    chapters = screenModel.loadedChapterList,
-                )
+                // 先查重再上架: 核心上架逻辑 (toggleBookshelfCore) 会把书架里同名书的阅读进度
+                // 静默继承过来, 用户看到"进度莫名接上了"会以为加错了书。有冲突就先问。
+                screenModel.pageScope.launch {
+                    val duplicate = withContext(IoDispatcher) {
+                        // 查重失败不该拦住上架 (它只是个提示), 当没有冲突继续
+                        runCatching { b.findShelfDuplicate() }.getOrNull()
+                    }
+                    if (duplicate == null) addToShelfNow(b) else shelfDuplicate = duplicate
+                }
                 return
             }
             // 下架: 确认框与勾选值按端分工 (见 startShelfDelete)
@@ -887,6 +909,28 @@ fun BookInfoRoute(
             },
             onBookSourceManage = { navigator.push(AppRoute.BookSourceManage) },
             onDismiss = { showChangeSourceDialog = false },
+        )
+    }
+
+    // 加书架查重弹窗: 只说清"会有两本 + 进度沿用旧的", 不做自动替换。
+    // 替换等于删掉用户已有的书 (连带阅读进度/书签), 不是一句提示能兜住的破坏性操作,
+    // 想做的话请走书架里的"换源", 那条路径本来就有迁移语义。
+    shelfDuplicate?.let { existing ->
+        val incoming = state.book ?: book
+        AppAlertDialog(
+            onDismissRequest = { shelfDuplicate = null },
+            title = stringResource(Res.string.bookshelf_duplicate_title),
+            message = stringResource(
+                Res.string.bookshelf_duplicate_message,
+                existing.name,
+                existing.originName.ifBlank { existing.origin },
+                incoming.originName.ifBlank { incoming.origin },
+            ),
+            okButton = AlertButton(stringResource(Res.string.bookshelf_duplicate_add)) {
+                shelfDuplicate = null
+                addToShelfNow(incoming)
+            },
+            cancelButton = AlertButton(stringResource(Res.string.cancel)),
         )
     }
 

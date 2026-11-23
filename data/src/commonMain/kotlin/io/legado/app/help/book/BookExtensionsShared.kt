@@ -392,3 +392,26 @@ fun tryParesExportFileName(jsStr: String): Boolean {
         true
     }.getOrDefault(false)
 }
+
+/**
+ * 加入书架前的重复检测: 书架里是否已有「同一部作品、不同来源」的另一本。
+ *
+ * 判定 = 书名按 [BookMatchKey.of] 归一后相同 + 作者兼容 + bookUrl 不同 + 不是在架外临时书
+ * (notShelf, 否则"下架再加回来"会莫名弹提示)。多本命中时取最近阅读的那本 —— 用户说的
+ * "书架里那本"几乎总是指他最后看过的那本。
+ *
+ * 只做检测、不改任何状态: 加书架的核心 [toggleBookshelfCore] 会**静默**把同名书的阅读进度
+ * 合并过来, 用户没有任何感知。把判断结果交给调用方去提示, 核心语义才不会因端而异。
+ */
+suspend fun Book.findShelfDuplicate(): Book? {
+    val key = BookMatchKey.of(name)
+    if (key.isBlank()) return null
+    val authorKey = BookMatchKey.of(author)
+    return AppDbProviders.get().bookDao.all()
+        .asSequence()
+        .filter { it.bookUrl != bookUrl }
+        .filter { !it.isNotShelf }
+        .filter { BookMatchKey.of(it.name) == key }
+        .filter { BookMatchKey.authorCompatible(authorKey, BookMatchKey.of(it.author)) }
+        .maxByOrNull { it.durChapterTime }
+}

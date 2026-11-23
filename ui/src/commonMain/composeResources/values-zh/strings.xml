@@ -1881,4 +1881,7 @@ Windows: winget install shinchiro.mpv 或 scoop install mpv,
     <string name="settings_search_filter_count">显示 %1$s / %2$s 项</string>
     <string name="settings_search_clear">清空</string>
     <string name="settings_search_filter_empty">本页没有匹配的设置项</string>
+    <string name="bookshelf_duplicate_title">书架已有同名书</string>
+    <string name="bookshelf_duplicate_message">书架里已有《%1$s》（来源：%2$s）。继续加入会再增加一本（来源：%3$s），阅读进度沿用已有的那本。</string>
+    <string name="bookshelf_duplicate_add">仍然加入</string>
 </resources>

@@ -1815,4 +1815,7 @@
     <string name="settings_search_filter_count">%1$s of %2$s</string>
     <string name="settings_search_clear">Clear</string>
     <string name="settings_search_filter_empty">Nothing on this page matches</string>
+    <string name="bookshelf_duplicate_title">Already on shelf</string>
+    <string name="bookshelf_duplicate_message">%1$s (source: %2$s) is already on your shelf. Adding it again creates a second copy (source: %3$s); reading progress is inherited from the existing one.</string>
+    <string name="bookshelf_duplicate_add">Add anyway</string>
 </resources>
