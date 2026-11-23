@@ -402,14 +402,26 @@ fun tryParesExportFileName(jsStr: String): Boolean {
  *
  * 只做检测、不改任何状态: 加书架的核心 [toggleBookshelfCore] 会**静默**把同名书的阅读进度
  * 合并过来, 用户没有任何感知。把判断结果交给调用方去提示, 核心语义才不会因端而异。
+ *
+ * 接收者故意写成 [BaseBook] 而不是 [Book]: K/N 的 NativeSuspendFunctionsLowering 会为了
+ * `@RestrictsSuspension` 检查去读**接收者类型**的注解, 而 Book 上的
+ * `@Entity(indices = [Index(value = ["name","author"], unique = true)])` 是注解里套注解 +
+ * vararg 数组, `toConstantValue` 处理不了, 直接 ICE:
+ *
+ *   Internal error in file lowering: ... IrConstructorCallImpl@... is not expected:
+ *   CONSTRUCTOR_CALL ... ARG value: VARARG ... "name", "author" ... ARG unique: true
+ *
+ * 这个 ICE 只在 release framework 链接期炸 (linkReleaseFrameworkIosArm64), 前面
+ * `:ui:compileKotlinJvm`、klib 编译都不会报 —— 与 [toggleBookshelfCore] 同一规避手法。
  */
-suspend fun Book.findShelfDuplicate(): Book? {
-    val key = BookMatchKey.of(name)
+suspend fun BaseBook.findShelfDuplicate(): Book? {
+    val book = this as Book
+    val key = BookMatchKey.of(book.name)
     if (key.isBlank()) return null
-    val authorKey = BookMatchKey.of(author)
+    val authorKey = BookMatchKey.of(book.author)
     return AppDbProviders.get().bookDao.all()
         .asSequence()
-        .filter { it.bookUrl != bookUrl }
+        .filter { it.bookUrl != book.bookUrl }
         .filter { !it.isNotShelf }
         .filter { BookMatchKey.of(it.name) == key }
         .filter { BookMatchKey.authorCompatible(authorKey, BookMatchKey.of(it.author)) }
