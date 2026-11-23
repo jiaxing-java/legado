@@ -1,7 +1,6 @@
 package io.legado.app.ui.settings.search
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,9 +28,6 @@ import legado.ui.generated.resources.setting
 import legado.ui.generated.resources.settings_search_clear
 import legado.ui.generated.resources.settings_search_count
 import legado.ui.generated.resources.settings_search_empty
-import legado.ui.generated.resources.settings_search_filter_count
-import legado.ui.generated.resources.settings_search_filter_empty
-import legado.ui.generated.resources.settings_search_filter_hint
 import legado.ui.generated.resources.settings_search_hint
 import legado.ui.generated.resources.settings_search_prompt
 import legado.ui.generated.resources.settings_search_reader_only
@@ -39,7 +35,6 @@ import legado.ui.generated.resources.settings_search_reader_only_message
 import legado.ui.generated.resources.settings_search_title
 import org.jetbrains.compose.resources.stringResource
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
@@ -141,9 +136,6 @@ fun SettingsSearchDialog(
                                 }
                             } else null,
                         )
-                        HorizontalDivider(
-                            modifier = Modifier.padding(start = DesignTokens.spacingLg),
-                        )
                     }
                 }
             }
@@ -163,46 +155,6 @@ fun SettingsSearchDialog(
                 onClick = { readerOnlyPage = null },
             ),
             cancelButton = null,
-        )
-    }
-}
-
-/** 页内搜索栏：设置页从搜索结果跳进来时显示，带关键词时同时给出筛选计数。 */
-@Composable
-fun SettingsPageSearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    matched: Int,
-    total: Int,
-) {
-    Column(Modifier.fillMaxWidth()) {
-        AppSearchField(
-            value = query,
-            onValueChange = onQueryChange,
-            hint = stringResource(Res.string.settings_search_filter_hint),
-            modifier = Modifier.padding(
-                start = DesignTokens.spacingLg,
-                end = DesignTokens.spacingLg,
-                top = DesignTokens.spacingDefault,
-            ),
-        )
-        Text(
-            text = if (matched == 0 && total > 0) {
-                stringResource(Res.string.settings_search_filter_empty)
-            } else {
-                stringResource(
-                    Res.string.settings_search_filter_count,
-                    matched,
-                    total,
-                )
-            },
-            color = AppTheme.colors.secondaryText,
-            fontSize = MiuixTheme.textStyles.footnote1.fontSize,
-            modifier = Modifier.padding(
-                start = DesignTokens.spacingLg,
-                end = DesignTokens.spacingLg,
-                bottom = DesignTokens.spacingDefault,
-            ),
         )
     }
 }
