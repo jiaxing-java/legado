@@ -58,7 +58,11 @@ interface HttpTtsPlayer {
             config.url,
             source = config,
             readTimeout = HttpTtsRequest.READ_TIMEOUT_MS,
-            variables = HttpTtsRequest.speakVariables(text, speechRate),
+            // 与下载路径共用同一个语速换算，避免流式/下载两种模式听到两种语速
+            variables = HttpTtsRequest.speakVariables(
+                text,
+                HttpTtsRequest.resolveSpeakSpeed(config, speechRate),
+            ),
         )
         setUrl(request.url, request.headerMap)
     }

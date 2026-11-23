@@ -24,6 +24,18 @@ object HttpTtsRequest {
     /** 期望 Content-Type 正则的单次匹配上限 (毫秒)。 */
     private const val CONTENT_TYPE_TIMEOUT = 3000L
 
+    /**
+     * 算出要注入 `{{speakSpeed}}` 的值。
+     *
+     * 源声明了语速就按源的标定值（(speed + 5)，10 = 1.0 倍）——源作者最清楚自家接口的
+     * 自然语速；没声明才沿用全局语速，保证存量源导入后听感与升级前完全一致。
+     *
+     * 流式播放（[HttpTtsPlayer.setRequest]）也走这一个函数：两条路径算出的
+     * speakSpeed 必须一致，否则"流式"与"下载后播"会听到两种语速。
+     */
+    fun resolveSpeakSpeed(config: HttpTTS, globalRate: Int): Int =
+        config.speed?.let { (it + 5).coerceIn(0, 90) } ?: globalRate
+
     /** 注入 url 模板 JS 作用域的变量表 */
     fun speakVariables(speakText: String, speakSpeed: Int): Map<AppConst.JsVarName, Any> {
         return mapOf(
@@ -45,9 +57,7 @@ object HttpTtsRequest {
             )
         },
     ): KmpResponse {
-        // 源声明了语速就按源的标定值合成（(speed + 5) 里 10 = 1.0 倍），
-        // 没声明才沿用全局语速——保证老源导入后听感与升级前一致。
-        val speakSpeed = config.speed?.let { (it + 5).coerceIn(0, 90) } ?: speechRate
+        val speakSpeed = resolveSpeakSpeed(config, speechRate)
         // 同一源的实时/试听/预合成共用一个配额，避免多路并发把上游打出 429。
         return HttpTtsSynthesisLimiter.withQuota(
             config.id.toString(),
