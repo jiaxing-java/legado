@@ -72,7 +72,16 @@ val gitCommits = providers.exec {
 
 android {
     namespace = "io.legado.app"
-    compileSdk = 37
+    // 必须是 37.2: modules/miuix 的 AAR 元数据要求消费方 compileSdk >= 37.2 (miuix-glass 等 8 个模块),
+    // 否则 :app:checkAppReleaseAarMetadata 直接失败:
+    //   Dependency ':miuix:miuix-glass' requires ... compile against version 37.2 or later ...
+    //   :app is currently compiled against android-37.0
+    // AGP 9 的 minor API level 只能用这个 DSL 表达, 没有 compileSdk = 37.2 这种写法。
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
 
     signingConfigs {
         // minSdk 24, v2/v3 签名已足够, 关闭 v1 省去 APK 内 JAR 签名清单 (CERT.SF+MANIFEST.MF ~220KB)

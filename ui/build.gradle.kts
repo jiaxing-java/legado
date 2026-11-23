@@ -71,7 +71,13 @@ kotlin {
 
     android {
         namespace = "io.legado.ui"
-        compileSdk = 37
+        // miuix AAR 元数据要求 compileSdk >= 37.2 (见 app/build.gradle.kts 同处注释);
+        // :ui 直接消费 miuix, 也得跟着升, 否则是 :ui 的 checkAarMetadata 先炸
+        compileSdk {
+            version = release(37) {
+                minorApiLevel = 2
+            }
+        }
         minSdk = 24
         // compose.resources 需要 assets 接入 (与 :shared 同款机制)
         androidResources.enable = true

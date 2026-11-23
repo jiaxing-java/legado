@@ -12,7 +12,12 @@ class AndroidApplicationConventionPlugin : Plugin<Project> {
         configureAndroidJvm21Toolchain()
 
         extensions.configure<ApplicationExtension> {
-            compileSdk = 37
+            // 37.2: miuix 的 AAR 元数据要求 (见 app/build.gradle.kts 同处注释)
+            compileSdk {
+                version = release(37) {
+                    minorApiLevel = 2
+                }
+            }
             defaultConfig {
                 minSdk = 24
                 targetSdk = 36

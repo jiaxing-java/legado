@@ -21,7 +21,12 @@ class AndroidBenchmarkConventionPlugin : Plugin<Project> {
         configureAndroidJvm21Toolchain()
 
         extensions.configure<TestExtension> {
-            compileSdk = 37
+            // 37.2: 与 :app 保持一致 (miuix AAR 元数据要求, 见 app/build.gradle.kts 同处注释)
+            compileSdk {
+                version = release(37) {
+                    minorApiLevel = 2
+                }
+            }
             defaultConfig {
                 // BaselineProfileRule 设备要求: Android 13 (API 33)+ 或已 root 的 Android 9 (API 28)+
                 minSdk = 28
