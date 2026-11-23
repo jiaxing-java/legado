@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.legado.app.data.entities.BaseBook
@@ -245,11 +246,23 @@ private fun shelfItemKey(item: Any): Any = when (item) {
 
 private fun shelfItemType(item: Any): Any = if (item is BookGroup) "group" else "book"
 
-/** 网格列数: 固定宽度模式仍走 Adaptive, 否则用户列数按参考宽度响应式加列 */
+/**
+ * 加列下限 = 用户配的封面宽度 + 间距。
+ *
+ * 与 MD3 `GridCells.Adaptive(coverWidth + 8)` 同一口径: 封面宽度是用户对"一屏放几本"的直接
+ * 表达, 不该被响应式加列稀释。原先只按"参考列宽 × 0.8"兜底, iPad 横屏 (1024–1366dp) 上
+ * 4 列偏好会被加成 10 列、列宽掉到 100dp 出头, 封面细得像书签。
+ */
+private const val SHELF_COLUMN_MIN_GAP_DP = 8
+
+private fun shelfMinColumnWidth(spec: ShelfLayoutSpec): Dp =
+    (spec.gridWidthDp + SHELF_COLUMN_MIN_GAP_DP).dp
+
+/** 网格列数: 固定宽度模式仍走 Adaptive, 否则用户列数按参考宽度响应式加列 (带封面宽度下限) */
 @Composable
 private fun shelfGridCells(spec: ShelfLayoutSpec): GridCells =
     if (spec.fixedWidth) GridCells.Adaptive(spec.gridWidthDp.dp)
-    else rememberResponsiveColumns(spec.cols)
+    else rememberResponsiveColumns(spec.cols, minColumnWidth = shelfMinColumnWidth(spec))
 
 /**
  * 列表档封面高度: 读全局配置 `bookshelfCoverHeight`, 视频样式按 0.75 收窄。
@@ -452,7 +465,10 @@ fun ShelfBooksContent(
                 val isStaggered = spec.cols >= 2
                 if (isStaggered) {
                     FastScrollLazyVerticalStaggeredGrid(
-                        columns = rememberResponsiveStaggeredGridColumns(spec.cols),
+                        columns = rememberResponsiveStaggeredGridColumns(
+                            spec.cols,
+                            minColumnWidth = shelfMinColumnWidth(spec),
+                        ),
                         state = scroll.staggered,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(bottom = DesignTokens.spacingDefault),

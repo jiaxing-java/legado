@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import io.legado.app.ui.compose.theme.AppTheme.DesignTokens
 import kotlin.math.roundToInt
 
@@ -29,15 +30,24 @@ private const val MIN_COLUMN_WIDTH_RATIO = 0.8f
  * - 守卫: round 进位后若列宽跌破守卫线 (如 1400dp/N=1 → round(3.5)=4 列 350dp,
  *   比 1200dp 的 3 列 400dp 更窄), 循环退列直到列宽回到守卫线上方
  *   (0.5 进位通常只差 1 列, 循环保证大 base 的 round 误差也能兜住)。
+ *
+ * @param minColumnWidth 列宽下限的显式值 (null = 按参考列宽 × [MIN_COLUMN_WIDTH_RATIO] 推算)。
+ *   书架传"用户配的封面宽度 + 间距", 与 MD3 `GridCells.Adaptive(coverWidth + 8)` 同一口径:
+ *   列数偏好决定参考宽下几列, 封面宽度决定**最窄能到多少**, iPad 横屏才不会出现细条封面。
  */
-fun effectiveColumns(baseColumns: Int, availableWidth: Dp, referenceWidth: Dp): Int {
+fun effectiveColumns(
+    baseColumns: Int,
+    availableWidth: Dp,
+    referenceWidth: Dp,
+    minColumnWidth: Dp? = null,
+): Int {
     val base = baseColumns.coerceAtLeast(1)
     val scaled = (base * (availableWidth / referenceWidth)).roundToInt()
     // max 钳底: 容器过窄(如首帧 availableSize=0)时 scaled 可为 0, 钳到 base 防除零/列数归零
     var columns = scaled.coerceAtLeast(base)
     // 参考列宽 = referenceWidth / base; 守卫下限 = 其 MIN_COLUMN_WIDTH_RATIO 倍
-    val minColumnWidth = referenceWidth / base * MIN_COLUMN_WIDTH_RATIO
-    while (columns > base && availableWidth / columns < minColumnWidth) {
+    val minWidth = minColumnWidth?.coerceAtLeast(1.dp) ?: (referenceWidth / base * MIN_COLUMN_WIDTH_RATIO)
+    while (columns > base && availableWidth / columns < minWidth) {
         columns--
     }
     return columns
@@ -52,6 +62,8 @@ fun effectiveColumns(baseColumns: Int, availableWidth: Dp, referenceWidth: Dp): 
 class ResponsiveGridCells(
     private val baseColumns: Int,
     private val referenceWidth: Dp = DesignTokens.responsiveColumnsReferenceWidth,
+    /** 见 [effectiveColumns] 的同名参数; null = 按参考列宽推算 */
+    private val minColumnWidth: Dp? = null,
 ) : GridCells {
 
     override fun Density.calculateCrossAxisCellSizes(
@@ -59,7 +71,7 @@ class ResponsiveGridCells(
         spacing: Int,
     ): List<Int> {
         // coerceAtLeast(1) 兜底: 极端情况下 effectiveColumns 内部计算异常也不允许除零
-        val columns = effectiveColumns(baseColumns, availableSize.toDp(), referenceWidth)
+        val columns = effectiveColumns(baseColumns, availableSize.toDp(), referenceWidth, minColumnWidth)
             .coerceAtLeast(1)
         // 与 GridCells.Fixed 同一套整数分配: 余数逐格 +1, 避免右侧留缝
         val sizeWithoutSpacing = availableSize - spacing * (columns - 1)
@@ -68,10 +80,11 @@ class ResponsiveGridCells(
         return List(columns) { slotSize + if (it < remainingPixels) 1 else 0 }
     }
 
-    override fun hashCode(): Int = baseColumns * 31 + referenceWidth.hashCode()
+    override fun hashCode(): Int = baseColumns * 31 + referenceWidth.hashCode() + (minColumnWidth?.hashCode() ?: 0)
 
     override fun equals(other: Any?): Boolean = other is ResponsiveGridCells &&
-        other.baseColumns == baseColumns && other.referenceWidth == referenceWidth
+        other.baseColumns == baseColumns && other.referenceWidth == referenceWidth &&
+        other.minColumnWidth == minColumnWidth
 }
 
 /** [ResponsiveGridCells] 的记忆化入口, 直接传给 LazyVerticalGrid 的 columns */
@@ -79,21 +92,23 @@ class ResponsiveGridCells(
 fun rememberResponsiveColumns(
     baseColumns: Int,
     referenceWidth: Dp = DesignTokens.responsiveColumnsReferenceWidth,
-): GridCells = remember(baseColumns, referenceWidth) {
-    ResponsiveGridCells(baseColumns, referenceWidth)
+    minColumnWidth: Dp? = null,
+): GridCells = remember(baseColumns, referenceWidth, minColumnWidth) {
+    ResponsiveGridCells(baseColumns, referenceWidth, minColumnWidth)
 }
 
 /** 瀑布流版本的响应式分列, 算法同 [ResponsiveGridCells] */
 class ResponsiveStaggeredGridCells(
     private val baseColumns: Int,
     private val referenceWidth: Dp = DesignTokens.responsiveColumnsReferenceWidth,
+    private val minColumnWidth: Dp? = null,
 ) : StaggeredGridCells {
 
     override fun Density.calculateCrossAxisCellSizes(
         availableSize: Int,
         spacing: Int,
     ): IntArray {
-        val columns = effectiveColumns(baseColumns, availableSize.toDp(), referenceWidth)
+        val columns = effectiveColumns(baseColumns, availableSize.toDp(), referenceWidth, minColumnWidth)
             .coerceAtLeast(1)
         val sizeWithoutSpacing = availableSize - spacing * (columns - 1)
         val slotSize = sizeWithoutSpacing / columns
@@ -101,10 +116,11 @@ class ResponsiveStaggeredGridCells(
         return IntArray(columns) { slotSize + if (it < remainingPixels) 1 else 0 }
     }
 
-    override fun hashCode(): Int = baseColumns * 31 + referenceWidth.hashCode()
+    override fun hashCode(): Int = baseColumns * 31 + referenceWidth.hashCode() + (minColumnWidth?.hashCode() ?: 0)
 
     override fun equals(other: Any?): Boolean = other is ResponsiveStaggeredGridCells &&
-        other.baseColumns == baseColumns && other.referenceWidth == referenceWidth
+        other.baseColumns == baseColumns && other.referenceWidth == referenceWidth &&
+        other.minColumnWidth == minColumnWidth
 }
 
 /** [ResponsiveStaggeredGridCells] 的记忆化入口, 直接传给 LazyVerticalStaggeredGrid 的 columns */
@@ -112,7 +128,8 @@ class ResponsiveStaggeredGridCells(
 fun rememberResponsiveStaggeredGridColumns(
     baseColumns: Int,
     referenceWidth: Dp = DesignTokens.responsiveColumnsReferenceWidth,
-): StaggeredGridCells = remember(baseColumns, referenceWidth) {
-    ResponsiveStaggeredGridCells(baseColumns, referenceWidth)
+    minColumnWidth: Dp? = null,
+): StaggeredGridCells = remember(baseColumns, referenceWidth, minColumnWidth) {
+    ResponsiveStaggeredGridCells(baseColumns, referenceWidth, minColumnWidth)
 }
 
