@@ -37,7 +37,7 @@ composeMultiplatform-jvm = "1.12.2"
 # 升级时可上 0.45.0 (含 0.43/0.44 全部修复)。
 multiplatformMarkdown = "0.41.0"
 # coil 3.4.0 = iOS klib 兼容 Kotlin 2.3.20 的最高版本 (3.5.0+ 的 iOS klib 为 Kotlin 2.4 ABI)。
-# coil 传递的 skiko (0.9.22.2) 远旧于 CMP 1.11.1 的 skiko (0.144.6); skiko 版本归 CMP 拥有,
+# coil 传递的 skiko (0.9.22.2) 远旧于 CMP 的 skiko; skiko 版本归 CMP 拥有,
 # 由 legado.compose 约定插件的 ComponentMetadataRule 统一剔除 coil3 组件元数据中的 skiko 依赖。
 # 升级守卫: 未来升级 CMP 或 coil 时, 须在 :desktop 端验证图片解码 (SkiaImageDecoder) 运行时兼容性。
 # 桌面视频播放引擎: open-ani/mediamp (Compose Multiplatform 播放抽象, 替代自研 libmpv 直通渲染)。
@@ -113,6 +113,14 @@ fleeksoft-charset = "0.0.8"
 fleeksoft-io = "0.0.8"
 kxml2 = "2.3.0"
 jsvg = "2.1.0"
+# skiko-awt 只有 :ui/:data/:core 的 jvmMain 直接用 (Skia 图片编码/SVG 光栅化) 时才需要显式声明。
+# 版本必须与 CMP 当前基线携带的 skiko 严格一致: skiko 的 Gradle Module Metadata 在
+# awtApiElements/awtRuntimeElements 两个变体上给 7 个平台 runtime 构件各挂了一条
+# strictly 约束。若图里同时存在两个 skiko-awt 版本, 两组 strictly 会互相排斥, 报
+#   Cannot find a version of 'skiko-awt-runtime-<platform>' that satisfies the version constraints
+# 且**只在 runtimeClasspath 炸** (平台 runtime 构件不入编译期), :ui:compileKotlinJvm 一路绿灯。
+# 升级 CMP 时: 看 org.jetbrains.compose.ui:ui-graphics 的 skiko 传递版本, 同步改这里。
+skiko = "0.150.2"
 androidsvg = "1.4"
 
 # ===== 压缩 / 文档格式 =====
@@ -285,6 +293,7 @@ fleeksoft-charset = { module = "com.fleeksoft.charset:charset", version.ref = "f
 fleeksoft-io-core = { module = "com.fleeksoft.io:io-core", version.ref = "fleeksoft-io" }
 kxml2 = { module = "net.sf.kxml:kxml2", version.ref = "kxml2" }
 jsvg = { module = "com.github.weisj:jsvg", version.ref = "jsvg" }
+skiko-awt = { module = "org.jetbrains.skiko:skiko-awt", version.ref = "skiko" }
 androidsvg = { module = "com.caverock:androidsvg-aar", version.ref = "androidsvg" }
 
 # ===== 压缩 / 文档格式 =====

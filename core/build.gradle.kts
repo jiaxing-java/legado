@@ -85,7 +85,7 @@ kotlin {
                 sharedJvmAndroidDeps()
                 implementation(libs.kxml2)
                 // help/image 的 jvm 实现 (ImageBitmapLoader.jvm 等) 用 Skia 编码
-                implementation("org.jetbrains.skiko:skiko-awt:0.144.6")
+                implementation(libs.skiko.awt)
             }
         }
         // iOS+鸿蒙 非 UI 公共层 (help 的 native 实现)

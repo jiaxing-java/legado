@@ -266,7 +266,7 @@ kotlin {
                 implementation(libs.androidx.sqlite.bundled)
                 // SvgRasterizer 的 jsvg 渲染 + skiko 编码
                 implementation(libs.jsvg)
-                implementation("org.jetbrains.skiko:skiko-awt:0.144.6")
+                implementation(libs.skiko.awt)
             }
         }
         val nativeMain = if (enableIosTarget || enableOhosTarget) {
