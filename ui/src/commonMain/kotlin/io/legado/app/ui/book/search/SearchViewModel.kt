@@ -598,7 +598,43 @@ class SearchViewModel {
     private fun restartSearchBooksCollector() {
         searchBooksThrottleJob?.cancel()
         searchBooksThrottleJob = scope.launch {
-            searchBooksSource.throttleLatest(500).collect { _searchBooks.tryEmit(it) }
+            searchBooksSource.throttleLatest(500).collect {
+                _searchBooks.tryEmit(it.sortedWithSearchPriority(searchKey))
+            }
+        }
+    }
+
+    /**
+     * 结果优先级排序（对齐 MD3 `sortedWithSearchPriority`）。
+     *
+     * 搜索是"边搜边出"，各源返回顺序完全取决于谁先回来；不做一次重排的话，书名/作者
+     * 完全命中的那本可能排在第 20 位，而只沾了关键字的杂项反而在顶上。这里按
+     * 完全命中 → 标签命中 → 包含命中 → 其他 分四档，档内按来源数降序：
+     * 多源都收到的同一本书更可信，也正好是换源时最该排前面的那本。
+     *
+     * 关键词为空（触底续搜沿用旧词的空档）时原样返回，不制造无意义的复制。
+     */
+    private fun List<SearchBook>.sortedWithSearchPriority(keyword: String): List<SearchBook> {
+        if (keyword.isBlank() || size < 2) return this
+        val equal = ArrayList<SearchBook>(size)
+        val tags = ArrayList<SearchBook>()
+        val contains = ArrayList<SearchBook>()
+        val other = ArrayList<SearchBook>()
+        forEach { book ->
+            when {
+                book.name.equals(keyword, ignoreCase = true) ||
+                    book.author.equals(keyword, ignoreCase = true) -> equal.add(book)
+                book.kind?.contains(keyword, ignoreCase = true) == true -> tags.add(book)
+                book.name.contains(keyword, ignoreCase = true) ||
+                    book.author.contains(keyword, ignoreCase = true) -> contains.add(book)
+                else -> other.add(book)
+            }
+        }
+        return buildList(size) {
+            addAll(equal.sortedByDescending { it.origins.size })
+            addAll(tags.sortedByDescending { it.origins.size })
+            addAll(contains.sortedByDescending { it.origins.size })
+            addAll(other)
         }
     }
 
