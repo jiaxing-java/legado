@@ -1,6 +1,12 @@
 [versions]
 # ===== 构建工具链 =====
-agp = "9.4.1"
+# AGP 必须与 modules/miuix 子模块声明的版本一致: 该子模块以 includeBuild 复合构建参与,
+# 一旦两边的 AGP 不同, AGP 的 AgpVersionCompatibilityRule 会拒绝解析 Android 变体,
+# 报 "Using multiple versions of the Android Gradle plugin(9.5.1, 9.4.1) in the same build
+# is not allowed" —— 注意这条只在 Android 变体解析时才炸, :ui:compileKotlinJvm 照样通过,
+# 所以本地只跑 JVM 编译发现不了, 会一路红到 CI 的 assembleAppRelease。
+# 2026-11-06 miuix 上游把 AGP 升到 9.5.1 (4873fc73), 接入时就该跟着升, 当时漏了。
+agp = "9.5.1"
 # 本分支对齐 MIUIX（MD3 皮肤底座）基线: Miuix 0.9.5 用 Kotlin 2.4.21 + CMP 1.12.2 编译,
 # 其 iosArm64 klib 为 2.4 ABI, 2.3.20 消费方无法链接。上游注释中的「解锁条件」即此升级。
 kotlin = "2.4.21"
