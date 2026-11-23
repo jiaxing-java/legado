@@ -6,6 +6,11 @@ import io.legado.app.App
 import io.legado.app.help.i18n.androidAppString
 import io.legado.app.utils.buildMainHandler
 import io.legado.app.utils.toastOnUi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 
 /**
  * Android TextToSpeech 引擎封装。
@@ -257,6 +262,56 @@ private class AndroidSystemTtsEngine : SystemTtsEngine {
         paused = false
         engine.shutdown()
     }
+
+    /**
+     * 枚举本机已安装的系统 TTS 引擎（MultiTTS / 微软 / 厂商语音都在这里）。
+     *
+     * 另起一个临时实例而不是复用 [engine]：枚举要求引擎已 init，复用会打乱当前朗读的
+     * 初始化与空闲释放时序，读到的也可能只是上一次 init 的快照。
+     *
+     * 构造必须在主线程（TextToSpeech 内部要 Looper），但 `engines` 是同步 binder 调用、
+     * 会阻塞等引擎进程回包，所以读取放 IO，读完再回主线程销毁。
+     */
+    override suspend fun listEngines(): List<SystemTtsEngineInfo> {
+        val probe = createProbe() ?: return emptyList()
+        return try {
+            withContext(Dispatchers.IO) {
+                probe.engines.orEmpty()
+                    .distinctBy { it.name }
+                    .map { info ->
+                        val label = info.label?.takeIf(String::isNotBlank) ?: info.name
+                        SystemTtsEngineInfo(info.name, label)
+                    }
+                    .sortedBy { it.label.lowercase() }
+            }
+        } finally {
+            // NonCancellable: 探测实例是 native 资源, 调用方取消(关弹窗)时也必须 shutdown,
+            // 否则可取消的 withContext 会直接抛 CancellationException 跳过清理
+            withContext(NonCancellable + Dispatchers.Main.immediate) {
+                probe.stop()
+                probe.shutdown()
+            }
+        }
+    }
+
+    private suspend fun createProbe(): TextToSpeech? =
+        withContext(Dispatchers.Main.immediate) {
+            suspendCancellableCoroutine { continuation ->
+                var instance: TextToSpeech? = null
+                val listener = TextToSpeech.OnInitListener { status ->
+                    val created = instance
+                    when {
+                        !continuation.isActive -> created?.shutdown()
+                        status == TextToSpeech.SUCCESS -> continuation.resume(created)
+                        else -> {
+                            created?.shutdown()
+                            continuation.resume(null)
+                        }
+                    }
+                }
+                instance = TextToSpeech(App.instance, listener)
+            }
+        }
 
     private companion object {
         const val IDLE_TIMEOUT_MS = 60_000L

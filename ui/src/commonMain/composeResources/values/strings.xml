@@ -1336,6 +1336,7 @@
     <string name="style_name">Style name:</string>
     <string name="sure_clear_search_history">Are you sure to clear all search history</string>
     <string name="system_tts">System tts</string>
+    <string name="system_tts_engines">Installed speech engines</string>
     <string name="telegram_group_url" translatable="false">https://t.me/+mT22ceIeiSllM2U1</string>
     <string name="text">Text</string>
     <string name="text_bg_style">Color and background (long tap to customize)</string>

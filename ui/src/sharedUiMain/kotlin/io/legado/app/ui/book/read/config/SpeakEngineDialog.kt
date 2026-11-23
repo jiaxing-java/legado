@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.DropdownMenuItem
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.legado.app.data.entities.HttpTTS
+import io.legado.app.help.tts.SystemTtsEngineInfo
 import io.legado.app.ui.compose.component.AppDialogScaffold
 import io.legado.app.ui.compose.component.AppDialogSizes
 import io.legado.app.ui.compose.component.AppRadioButton
@@ -34,6 +36,11 @@ import io.legado.app.ui.compose.component.FastScrollLazyColumn
 import io.legado.app.ui.compose.component.OverflowMenu
 import io.legado.app.ui.compose.theme.AppTheme
 import io.legado.app.ui.compose.theme.AppTheme.DesignTokens
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import legado.ui.generated.resources.Res
 import legado.ui.generated.resources.add
 import legado.ui.generated.resources.delete
@@ -48,9 +55,11 @@ import legado.ui.generated.resources.import_on_line
 import legado.ui.generated.resources.login
 import legado.ui.generated.resources.speak_engine
 import legado.ui.generated.resources.system_default
+import legado.ui.generated.resources.system_tts_engines
 import legado.ui.generated.resources.test
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 朗读引擎选择对话框 (KMP 共享, app + desktop 复用)。
@@ -71,6 +80,10 @@ import org.jetbrains.compose.resources.stringResource
  * - 桌面端无系统 TTS 引擎列表, 仅保留"系统默认"占位行
  * - 原版底部"书籍/通用/取消"三个按钮不保留: 选中即由调用方持久化, 关闭走标题栏返回/点遮罩
  * - 标题栏三点菜单 + 行级 登录/测试 为新增功能 (原版菜单只有导入导出族)
+ * - 系统引擎分组: [systemEngines] 非空时在"系统默认"下方列出本机已安装的引擎
+ *   (MultiTTS / 微软 / 厂商语音), 选中写入 `{"title":..,"value":<包名>}`, 由
+ *   `TTSReadAloudService` 交给 `TextToSpeech(context, listener, engineName)`。
+ *   这些行不提供试听: 试听入口只会用系统默认引擎发声, 给出的会是错误的音色。
  *
  * # 样式 (Arco Design 规范)
  *
@@ -79,6 +92,7 @@ import org.jetbrains.compose.resources.stringResource
  * - 无阴影 (Surface 默认无阴影)
  *
  * @param engines HTTP TTS 引擎列表 (调用方负责从 appDb.httpTTSDao.flowAll() 加载)
+ * @param systemEngines 本机已安装的系统 TTS 引擎 (非 Android 端为空表, 不渲染分组)
  * @param selectedEngineUrl 当前选中引擎 id 字符串 (null=系统默认)
  * @param onSelectEngine 用户点击引擎行回调 (参数为引擎 id 字符串, null=系统默认)
  * @param onEditEngines 新增(null)/编辑(非 null)指定 HttpTTS
@@ -105,10 +119,22 @@ fun SpeakEngineDialog(
     onImportDefault: () -> Unit,
     onExport: () -> Unit,
     onDismiss: () -> Unit,
+    systemEngines: List<SystemTtsEngineInfo> = emptyList(),
 ) {
     // 当前选中引擎 id 字符串 (本地状态, 用于即时更新 RadioButton 选中态)
     var selected by remember(selectedEngineUrl) { mutableStateOf(selectedEngineUrl) }
     val colors = AppTheme.colors
+    // 系统引擎的选中值是 SelectItem 形态 ({title,value}), 与 HttpTTS 的数字 id 共存;
+    // 解析失败(或数字 id)即为 null, 不会误点亮系统引擎行
+    val selectedSystemEngineId = remember(selected) {
+        selected
+            ?.takeIf { it.startsWith("{") }
+            ?.let { raw ->
+                runCatching {
+                    Json.parseToJsonElement(raw).jsonObject["value"]?.jsonPrimitive?.content
+                }.getOrNull()
+            }
+    }
 
     AppDialogScaffold(
         onDismissRequest = onDismiss,
@@ -158,6 +184,37 @@ fun SpeakEngineDialog(
                         onSelectEngine(null)
                     },
                 )
+            }
+            // 系统引擎分组 (Android 才有: MultiTTS / 微软 / 厂商语音; 其余端空表不渲染)
+            if (systemEngines.isNotEmpty()) {
+                item(key = "sysEnginesHeader") {
+                    Text(
+                        text = stringResource(Res.string.system_tts_engines),
+                        color = colors.secondaryText,
+                        fontSize = MiuixTheme.textStyles.footnote1.fontSize,
+                        modifier = Modifier.padding(
+                            start = DesignTokens.spacingDefault,
+                            end = DesignTokens.spacingDefault,
+                            top = DesignTokens.spacingMd,
+                            bottom = DesignTokens.spacingXs,
+                        ),
+                    )
+                }
+                items(systemEngines, key = { "sys:${it.id}" }) { info ->
+                    EngineRow(
+                        name = info.label,
+                        checked = selectedSystemEngineId == info.id,
+                        // 不挂试听: 试听入口走的是系统默认引擎, 在这里点会播错音色
+                        onSelect = {
+                            val value = buildJsonObject {
+                                put("title", info.label)
+                                put("value", info.id)
+                            }.toString()
+                            selected = value
+                            onSelectEngine(value)
+                        },
+                    )
+                }
             }
             // HTTP TTS 引擎列表 (与原版 items(items.size, key = { items[it].id }) 对齐)
             items(engines, key = { it.id }) { httpTTS ->

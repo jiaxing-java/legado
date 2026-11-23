@@ -4,6 +4,14 @@ import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 
 /**
+ * 本机已安装的系统 TTS 引擎（Android 对应 `TextToSpeech.EngineInfo`）。
+ *
+ * [id] 是引擎的包名/类名，既作为 `TextToSpeech(context, listener, id)` 的第三个参数，
+ * 也直接写进 `ReadAloud.ttsEngine` 的 `SelectItem.value`；[label] 只用于展示。
+ */
+data class SystemTtsEngineInfo(val id: String, val label: String)
+
+/**
  * 系统 TTS 引擎抽象接口（KMP 版）。
  *
  * 各平台只负责单段播放与平台事件适配；业务通过订阅 token 独立持有监听器，不能互相覆盖。
@@ -60,6 +68,18 @@ interface SystemTtsEngine {
     fun shutdown()
 
     fun synthesizeToBuffer(text: String, utteranceId: String): ByteArray? = null
+
+    /**
+     * 列出本机已安装的系统 TTS 引擎（不含"系统默认"这一项）。
+     *
+     * 只有 Android 有真实实现 —— 第三方引擎（MultiTTS、微软、各家厂商语音）都会出现在
+     * `TextToSpeech.engines` 里。其余平台的合成器是系统唯一的，没有"挑引擎"的语义，
+     * 返回空表即正确行为，UI 据此不渲染分组。
+     *
+     * 返回的 [SystemTtsEngineInfo.id] 会被原样写进 `ReadAloud.ttsEngine`，由
+     * Android 端 `TextToSpeechEngine(engineName)` 消费；因此这里**不要**做任何改写。
+     */
+    suspend fun listEngines(): List<SystemTtsEngineInfo> = emptyList()
 }
 
 /** 不透明监听订阅 token；身份即注册表 key，不携带 previous-listener 栈。 */

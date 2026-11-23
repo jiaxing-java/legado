@@ -19,6 +19,8 @@ import io.legado.app.help.config.PreferenceProviders
 import io.legado.app.help.coroutine.IoDispatcher
 import io.legado.app.help.storage.BackupFileOps
 import io.legado.app.help.tts.OneShotTts
+import io.legado.app.help.tts.SystemTtsEngineInfo
+import io.legado.app.help.tts.TtsEngineProvider
 import io.legado.app.ui.book.read.config.ReadAloudConfigScreen
 import io.legado.app.ui.book.read.config.SpeakEngineDialog
 import io.legado.app.ui.compose.component.AppDialogScaffold
@@ -99,6 +101,16 @@ private fun ReadAloudConfigContent(
             .collect { engines = it }
     }
 
+    // 本机已安装的系统 TTS 引擎 (Android: MultiTTS / 微软 / 厂商语音)。
+    // 非 Android 端 listEngines() 默认返回空表, 分组不渲染 —— 各端合成器本来就是唯一的。
+    // 枚举会新建一个 TextToSpeech 探测实例, 失败(引擎服务异常)时静默降级为只显示"系统默认"。
+    var systemEngines by remember { mutableStateOf(emptyList<SystemTtsEngineInfo>()) }
+    LaunchedEffect(Unit) {
+        systemEngines = runCatching { TtsEngineProvider.get()?.listEngines() }
+            .getOrNull()
+            .orEmpty()
+    }
+
     // 当前选中的 TTS 引擎 id 字符串 (null=系统默认)
     var selectedEngineUrl by remember {
         mutableStateOf(appConfig.ttsEngine.ifBlank { null })
@@ -149,6 +161,7 @@ private fun ReadAloudConfigContent(
     if (showSpeakEngineDialog) {
         SpeakEngineDialog(
             engines = engines,
+            systemEngines = systemEngines,
             selectedEngineUrl = selectedEngineUrl,
             onSelectEngine = { url ->
                 selectedEngineUrl = url
