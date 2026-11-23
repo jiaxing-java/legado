@@ -188,11 +188,17 @@ kotlin {
                 // Miuix (MD3 皮肤底座): 源码来自 modules/miuix 子模块 (settings 里 includeBuild),
                 // 与上面 compose 同一条工具链 (Kotlin 2.4.21 + CMP 1.12.2)。
                 // 声明在 sharedUiMain 而非 commonMain: Miuix 的 API 面全是 Compose 类型。
-                // ui/glass/blur 走 api, 供上层组件层直接引用其类型; preference/icons 仅内部使用。
+                // ui 走 api, 供上层组件层直接引用其类型; preference/icons 仅内部使用。
                 api(libs.miuix.core)
                 api(libs.miuix.ui)
-                api(libs.miuix.glass)
-                api(libs.miuix.blur)
+                // 不加 miuix-glass / miuix-blur: 两者目前全仓零 import, 而 miuix-blur 的
+                // build.gradle.kts 硬钉 `minSdk = 33` (RenderEffect 那套模糊), 一旦进依赖图
+                // :app:processAppReleaseMainManifest 就报
+                //   uses-sdk:minSdkVersion 24 cannot be smaller than version 33 declared in
+                //   library [:miuix:miuix-blur]
+                // 而 glass 又 `api(projects.miuixBlur)`, 去掉 blur 单独留 glass 也没用。
+                // 将来真要用 GlassTabRow 那批组件, 得先决定是提 minSdk (24→33, 砍掉 Android 7~12)
+                // 还是给 miuix-blur 提 minSdk 补丁 / 用 tools:overrideLibrary 兜运行时风险。
                 implementation(libs.miuix.preference)
                 implementation(libs.miuix.icons)
                 // 皮肤实际引用到 material (MD3 侧 import 计数 9 处)
