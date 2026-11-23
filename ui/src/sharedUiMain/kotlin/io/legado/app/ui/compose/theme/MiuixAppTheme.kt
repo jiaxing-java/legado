@@ -1,6 +1,9 @@
 package io.legado.app.ui.compose.theme
 
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
@@ -22,6 +25,9 @@ import top.yukonga.miuix.kmp.theme.defaultTextStyles
  * 分工与 MD3 相同 —— miuix 色板只负责**组件内部**取色 (按钮/卡片/开关/列表行),
  * 页面底色仍由 [AppColors.background] 经 AppBackground 绘制, 因此用户自定义背景色
  * 与背景图不会被 Monet 生成的 background 顶掉。
+ *
+ * 只接管配色与字阶, 不接管按压反馈 (LocalIndication) 与滚动回弹 (LocalOverscrollFactory),
+ * 原因见函数体注释。
  *
  * @param isDark 当前是否深色 (由已有的 [AppColors.isDark] 提供, 不重复读系统配置)
  * @param accent 现有主题强调色; 未指定 [palette] 时作为种子色
@@ -49,9 +55,23 @@ fun ProvideMiuixTheme(
         )
     }
     val textStyles = remember { defaultTextStyles() }
+    // MiuixTheme 除色板与字阶外, 还会一并 provide LocalIndication (MiuixIndication: 按压时
+    // 叠加 onBackground 色层) 与 LocalOverscrollFactory (拉伸回弹)。这两个属于"手感"而非
+    // "配色": 全站目前仍是 M2 组件, 直接接管会让所有 clickable 的波纹变成暗块、所有滚动
+    // 列表换一套回弹曲线 —— 与"只换皮肤、不动交互"的目标不符。故在其内部立即还原成外层值,
+    // 只把 LocalColors / LocalTextStyles 留在作用域内给 miuix 组件取用。
+    // (miuix 的 LocalColors/LocalTextStyles 是 internal, 无法绕过 MiuixTheme 单独 provide。)
+    val outerIndication = LocalIndication.current
+    val outerOverscrollFactory = LocalOverscrollFactory.current
     MiuixTheme(
         controller = controller,
         textStyles = textStyles,
-        content = content,
-    )
+    ) {
+        CompositionLocalProvider(
+            LocalIndication provides outerIndication,
+            LocalOverscrollFactory provides outerOverscrollFactory,
+        ) {
+            content()
+        }
+    }
 }

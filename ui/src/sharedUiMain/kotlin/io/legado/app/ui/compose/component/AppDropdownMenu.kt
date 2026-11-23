@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.LocalContentColor
 import androidx.compose.material.Surface
@@ -55,6 +56,7 @@ import io.legado.app.ui.compose.theme.AppTheme
 import io.legado.app.ui.compose.theme.AppTheme.DesignTokens
 import kotlin.math.max
 import kotlin.math.min
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /** 菜单与窗口上下边缘的最小间距, 复刻 material Menu.kt 的 MenuVerticalMargin。 */
 private val MenuVerticalMargin = 48.dp
@@ -168,8 +170,11 @@ private fun MenuContainer(
                 this.alpha = alpha
                 transformOrigin = transformOriginState.value
             },
-        shape = AppTheme.DesignTokens.shapeDefault,
-        color = AppTheme.colors.bottomBackground,
+        // MD3 形态: 容器取 miuix 的 surfaceContainer + 16dp 圆角 (对齐 miuix CardDefaults),
+        // 阴影保留 material DropdownMenu 的 MenuElevation=8dp。
+        // 只换容器视觉, 定位/限高/动画/返回拦截/键盘焦点全部沿用本文件的既有实现。
+        shape = RoundedCornerShape(16.dp),
+        color = MiuixTheme.colorScheme.surfaceContainer,
         // material DropdownMenu 默认阴影: MenuElevation=8dp, 阴影色走默认 (不透明黑)
         elevation = 8.dp,
     ) {
@@ -180,7 +185,7 @@ private fun MenuContainer(
                 .width(IntrinsicSize.Max)
                 .verticalScroll(rememberScrollState()),
         ) {
-            CompositionLocalProvider(LocalContentColor provides AppTheme.colors.menuText) {
+            CompositionLocalProvider(LocalContentColor provides MiuixTheme.colorScheme.onSurfaceContainer) {
                 content()
             }
         }

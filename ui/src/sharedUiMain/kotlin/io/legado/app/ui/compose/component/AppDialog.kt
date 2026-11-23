@@ -337,7 +337,9 @@ fun AppDialog(
 @Composable
 fun AppDialogSurface(
     modifier: Modifier = Modifier,
-    shape: Shape = AppTheme.DesignTokens.shapeDefault,
+    // MD3 形态: 对话框圆角走大圆角档 (16dp), 与 miuix Card/Dialog 的圆角规一致。
+    // 此前是 shapeDefault(8dp), 属 MD2 的小圆角观感。
+    shape: Shape = AppTheme.DesignTokens.shapeLg,
     color: Color = AppTheme.colors.fillet,
     content: @Composable () -> Unit,
 ) {

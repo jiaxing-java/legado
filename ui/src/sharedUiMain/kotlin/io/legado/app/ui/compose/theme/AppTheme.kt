@@ -71,8 +71,10 @@ object AppTheme {
         val shapeMd: RoundedCornerShape = RoundedCornerShape(radiusMd)
         val shapeLg: RoundedCornerShape = RoundedCornerShape(radiusLg)
 
-        // 语义别名: 按钮 8dp (贴底弹层顶角不在此列 —— 它随展开比例收平, 由 AppSheetSurface 按 radiusLg 插值)
-        val buttonShape: RoundedCornerShape = shapeDefault
+        // 语义别名: 按钮 16dp (MD3 按钮圆角档, 与 miuix ButtonDefaults.CornerRadius 一致)。
+        // 旧值为 shapeDefault(8dp) 的 MD2 小圆角。
+        // 贴底弹层顶角不在此列 —— 它随展开比例收平, 由 AppSheetSurface 按 radiusLg 插值。
+        val buttonShape: RoundedCornerShape = shapeLg
 
         /**
          * 文字按钮最小宽 (对齐 M2 ButtonDefaults.MinWidth, 窄文案不被压到比规范更窄)。
@@ -282,7 +284,12 @@ fun AppTheme(
                 ) {
                     // 直接 provides 整体替换(ProvideTextStyle 是 merge, 压不掉默认 body 样式的行高/字距)
                     CompositionLocalProvider(LocalTextStyle provides AppTheme.DesignTokens.defaultTextStyle) {
-                        content()
+                        // MD3 皮肤令牌: 全站注入 miuix 色板与字阶, 供 widget 层替换后的
+                        // miuix 组件取色 (此前只在设置页局部注入)。不动 indication/overscroll,
+                        // 详见 ProvideMiuixTheme 的实现注释。
+                        ProvideMiuixTheme(isDark = colors.isDark, accent = colors.accent) {
+                            content()
+                        }
                     }
                 }
             }

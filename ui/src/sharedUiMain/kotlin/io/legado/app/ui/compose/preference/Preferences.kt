@@ -60,7 +60,6 @@ import io.legado.app.ui.compose.component.AppUnderlineTextField
 import io.legado.app.ui.compose.platform.rememberNavigationBarPaddingValues
 import io.legado.app.ui.compose.theme.AppTheme
 import io.legado.app.ui.compose.theme.AppTheme.DesignTokens
-import io.legado.app.ui.compose.theme.ProvideMiuixTheme
 import io.legado.app.utils.ColorUtils
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -139,28 +138,23 @@ fun PreferenceScreen(
     columns: GridCells? = null,
     content: PreferenceScope.() -> Unit,
 ) {
-    // 试点: 设置页整体切到 MD3 皮肤的令牌层 (miuix)。种子色取自现有主题强调色,
-    // 因此用户自定义主题色依然生效, 只是色板由 materialkolor 按 Monet 规则展开。
-    // 只包在这一层而非 AppTheme 根部: 现阶段全站仍是 M2 组件, 先让 miuix 的
-    // LocalIndication/文字样式只笼罩设置页, 不影响其他页面手感。
-    val appColors = AppTheme.colors
-    ProvideMiuixTheme(isDark = appColors.isDark, accent = appColors.accent) {
-        if (columns == null) {
-            LazyColumn(
-                modifier = modifier.fillMaxSize(),
-                state = listState,
-                contentPadding = contentPadding,
-            ) {
-                ListPreferenceScope(this).content()
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = columns,
-                modifier = modifier.fillMaxSize(),
-                contentPadding = contentPadding,
-            ) {
-                GridPreferenceScope(this).content()
-            }
+    // 令牌层 (miuix 色板/字阶) 已由 AppTheme 根部统一注入, 此处不再重复包装:
+    // 重复 ProvideMiuixTheme 会多建一个 ThemeController 并把整套 Monet 色板再算一遍。
+    if (columns == null) {
+        LazyColumn(
+            modifier = modifier.fillMaxSize(),
+            state = listState,
+            contentPadding = contentPadding,
+        ) {
+            ListPreferenceScope(this).content()
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = columns,
+            modifier = modifier.fillMaxSize(),
+            contentPadding = contentPadding,
+        ) {
+            GridPreferenceScope(this).content()
         }
     }
 }

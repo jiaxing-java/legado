@@ -1,8 +1,5 @@
 package io.legado.app.ui.compose.component
 
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -16,16 +13,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSizeIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ButtonDefaults
-import androidx.compose.material.Checkbox
-import androidx.compose.material.CheckboxDefaults
 import androidx.compose.material.LocalTextStyle
 import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
@@ -35,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -60,6 +50,9 @@ import io.legado.app.ui.compose.platform.rememberColor
 import io.legado.app.ui.compose.theme.AppTheme
 import io.legado.app.ui.compose.theme.AppTheme.DesignTokens
 import io.legado.app.ui.compose.theme.LocalEInk
+import androidx.compose.ui.state.ToggleableState
+import top.yukonga.miuix.kmp.basic.Checkbox as MiuixCheckbox
+import top.yukonga.miuix.kmp.basic.Switch as MiuixSwitch
 
 /**
  * MD2 风格组件包装件（plan §1.8）：包装 androidx.compose.material (M2) 组件并
@@ -206,9 +199,15 @@ fun AppTextButton(
     }
 }
 
-/** 开关：自绘复刻 SwitchCompat/MD2 形态（细 track + 圆 thumb 带阴影），
- *  着色对齐 TintHelper.setTint(SwitchCompat)：勾选 track=accent α0.5 / thumb=accent，
- *  未选/禁用取 ate_switch_* 值。滑动动画走 animateDpAsState，E-Ink 禁动画。 */
+/**
+ * 开关：MD3 形态，直接委托 miuix [Switch]。
+ *
+ * 旧实现是手绘 SwitchCompat/MD2 形态（34×14 track + 20 thumb），与 MD3 的
+ * 大 track/大 thumb 差异明显；改用 miuix 后勾选态 track=primary、thumb=onPrimary，
+ * 并附带滑动拖拽、触觉反馈等完整交互（自绘版只有点击切换）。
+ *
+ * 签名保持不变（含 onCheckedChange 可空语义：null = 只显示状态，由承载行承担开关语义）。
+ */
 @Composable
 fun AppSwitch(
     checked: Boolean,
@@ -216,85 +215,12 @@ fun AppSwitch(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    val colors = AppTheme.colors
-    val isDark = colors.isDark
-    // ate_switch_track_normal light #43000000 / dark #4DFFFFFF；disabled light #1F000000 / dark #1AFFFFFF
-    val trackNormal = if (isDark) Color(0x4DFFFFFF) else Color(0x43000000)
-    val trackDisabled = if (isDark) Color(0x1AFFFFFF) else Color(0x1F000000)
-    // ate_switch_thumb_normal light #FFFAFAFA / dark #FFBDBDBD；disabled light #FFBDBDBD / dark #FF424242
-    val thumbNormal = if (isDark) Color(0xFFBDBDBD) else Color(0xFFFAFAFA)
-    val thumbDisabled = if (isDark) Color(0xFF424242) else Color(0xFFBDBDBD)
-
-    val trackColor = when {
-        !enabled -> trackDisabled
-        checked -> colors.accent.copy(alpha = 0.5f) // compatSwitch track alpha 0.5
-        else -> trackNormal
-    }
-    val thumbColor = when {
-        !enabled -> thumbDisabled
-        checked -> colors.accent
-        else -> thumbNormal
-    }
-
-    val trackWidth = 34.dp
-    val trackHeight = 14.dp
-    val thumbSize = 20.dp
-    val boxWidth = 36.dp // thumb 20dp 在 track 两端各溢出 1dp
-    val travel = boxWidth - thumbSize // 16dp
-    val thumbOffset by animateDpAsState(
-        targetValue = if (checked) travel else 0.dp,
-        animationSpec = if (LocalEInk.current) snap() else spring(),
-        label = "thumbOffset",
+    MiuixSwitch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        modifier = modifier,
+        enabled = enabled,
     )
-
-    // 视觉盒固定 36×20(作为居中内容),命中区放大不撑高行
-    val visual: @Composable () -> Unit = {
-        Box(
-            Modifier.size(width = boxWidth, height = thumbSize),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            Box(
-                Modifier
-                    .align(Alignment.Center)
-                    .size(width = trackWidth, height = trackHeight)
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(trackColor),
-            )
-            Box(
-                Modifier
-                    .offset(x = thumbOffset)
-                    .size(thumbSize)
-                    .shadow(2.dp, CircleShape)
-                    .background(thumbColor, CircleShape),
-            )
-        }
-    }
-
-    // 外层测量恒为 36×20 保持行高;命中区扩到 ≥48dp(SwitchCompat 触摸目标),
-    // requiredSizeIn 让 toggleable 层溢出居中而不影响外层测量。
-    Box(
-        modifier.size(width = boxWidth, height = thumbSize),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (onCheckedChange != null) {
-            // 开关自身不绘制指示: 按压/聚焦/悬停反馈由承载它的行提供
-            Box(
-                Modifier
-                    .requiredSizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                    .toggleable(
-                        value = checked,
-                        interactionSource = null,
-                        indication = null,
-                        enabled = enabled,
-                        role = Role.Switch,
-                        onValueChange = onCheckedChange,
-                    ),
-                contentAlignment = Alignment.Center,
-            ) { visual() }
-        } else {
-            visual()
-        }
-    }
 }
 
 /**
@@ -335,7 +261,12 @@ fun AppSwitchRow(
     }
 }
 
-/** 复选框：accent 勾选色对齐 CheckBox 主题着色 */
+/**
+ * 复选框：MD3 形态，委托 miuix [MiuixCheckbox]。
+ *
+ * 旧实现是 M2 Checkbox（accent 着色），形态为方角小框；miuix 版为圆角填充 + 勾选动画，
+ * 与 MD3 一致。签名不变：onCheckedChange 为 null 时只显示状态不可点。
+ */
 @Composable
 fun AppCheckbox(
     checked: Boolean,
@@ -343,17 +274,11 @@ fun AppCheckbox(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    val colors = AppTheme.colors
-    Checkbox(
-        checked = checked,
-        onCheckedChange = onCheckedChange,
+    MiuixCheckbox(
+        state = ToggleableState(checked),
+        onClick = onCheckedChange?.let { callback -> { callback(!checked) } },
         modifier = modifier,
         enabled = enabled,
-        colors = CheckboxDefaults.colors(
-            checkedColor = colors.accent,
-            uncheckedColor = colors.secondaryText,
-            checkmarkColor = colors.background,
-        ),
     )
 }
 

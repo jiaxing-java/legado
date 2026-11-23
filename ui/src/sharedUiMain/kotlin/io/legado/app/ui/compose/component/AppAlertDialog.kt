@@ -22,6 +22,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import io.legado.app.ui.compose.theme.AppTheme
 import io.legado.app.ui.compose.theme.AppTheme.DesignTokens
+import top.yukonga.miuix.kmp.basic.ButtonDefaults as MiuixButtonDefaults
+import top.yukonga.miuix.kmp.basic.Text as MiuixText
+import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * alert DSL 的按钮槽：文案 + 点击回调。dismissOnClick=false 时点击不关闭对话框
@@ -96,20 +100,20 @@ fun AppAlertDialogContent(
         // 壳体四边 8dp 是标题/正文/按钮共用的那一层留白; 标题与正文里的 8dp 是内容分块留白
         Column(Modifier.padding(DesignTokens.spacingDefault)) {
             title?.let {
-                Text(
+                // MD3 标题: miuix title3 (20sp, 与原 20sp 同档但字重/行高按 miuix 字阶)
+                MiuixText(
                     text = it,
-                    color = colors.primaryText,
-                    // 对齐原版 Material AlertDialog 标题 (TextAppearance.MaterialComponents.Headline6 = 20sp)
-                    fontSize = 20.sp,
+                    style = MiuixTheme.textStyles.title3,
+                    color = MiuixTheme.colorScheme.onSurfaceContainer,
                     modifier = Modifier.padding(DesignTokens.spacingDefault)
                 )
             }
             // weight+scroll: 长消息(如错误堆栈)收进可滚区, 按钮行恒可见——对齐 AlertDialog 消息区 ScrollView+按钮钉底
             message?.let {
-                Text(
+                MiuixText(
                     text = it,
-                    color = colors.secondaryText,
-                    fontSize = 15.sp,
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState())
@@ -175,13 +179,12 @@ fun AppSelectorDialog(
 /** 列表选择正文（供 AppSelectorDialog 与命令式 selector 复用） */
 @Composable
 fun AppSelectorList(items: List<String>, onItemClick: (index: Int) -> Unit) {
-    val colors = AppTheme.colors
     LazyColumn {
         itemsIndexed(items) { index, item ->
-            Text(
+            MiuixText(
                 text = item,
-                color = colors.primaryText,
-                fontSize = 16.sp,
+                style = MiuixTheme.textStyles.body1,
+                color = MiuixTheme.colorScheme.onSurfaceContainer,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onItemClick(index) }
@@ -198,8 +201,20 @@ private fun AlertTextButton(
     onDismissRequest: () -> Unit,
     color: Color = AppTheme.colors.accent,
 ) {
-    AppTextButton(text = button.text, enabled = button.enabled, color = color) {
-        button.onClick?.invoke()
-        if (button.dismissOnClick) onDismissRequest()
-    }
+    // 按钮换 miuix TextButton: 背景透明保持"纯文字按钮"(MD3 AlertDialog 同为 TextButton),
+    // 内距/最小高度(58×40)按 miuix ButtonDefaults, 比原手绘 32dp 高更高、触摸目标更好。
+    MiuixTextButton(
+        text = button.text,
+        onClick = {
+            button.onClick?.invoke()
+            if (button.dismissOnClick) onDismissRequest()
+        },
+        enabled = button.enabled,
+        colors = MiuixButtonDefaults.textButtonColors(
+            color = Color.Transparent,
+            disabledColor = Color.Transparent,
+            textColor = color,
+            disabledTextColor = AppTheme.colors.textDisabled,
+        ),
+    )
 }
