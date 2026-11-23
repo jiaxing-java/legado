@@ -89,12 +89,24 @@ jobs:
       - name: Release Apk Sign
         # 测试发布与 release.yml 正式发布统一使用同一正式签名密钥 (RELEASE_KEY_STORE secret 注入,
         # 注入方式与 release.yml 逐字同源), beta 包与正式包可直接互相覆盖安装。
+        #
+        # secrets 缺失时必须**整段跳过**, 不能拿空值往下走: app/build.gradle.kts 只在
+        # gradle.properties 存在 RELEASE_STORE_FILE 时才 create("myConfig"), 一旦写进去
+        # 就必须能解析出密钥, 否则 :app:packageAppRelease 抛
+        #   Failed to read key  from store "app/key.jks": Tag number over 30 is not supported
+        # （alias 为空 + key.jks 是 0 字节）。跳过即回落到 signingConfigs["debug"]。
+        # 上游 release.yml 用 prepare.outputs.sign 在 job 级拦掉整条链路; 本工作流要产测试包,
+        # 所以改成步骤级降级。fork 没有上游 secrets, 不这样做 Android 端永远红。
         env:
           RS_FILE: ${{ secrets.RELEASE_KEY_STORE }}
           RS_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RS_KEY_PASS: ${{ secrets.RELEASE_KEY_PASSWORD }}
           RS_STORE_PASS: ${{ secrets.RELEASE_STORE_PASSWORD }}
         run: |
+          if [ -z "$RS_FILE" ]; then
+            echo "::notice title=跳过正式签名::未配置 RELEASE_KEY_STORE, 本次产物为 debug 签名"
+            exit 0
+          fi
           echo "给apk增加签名"
           echo -e "\n" >> gradle.properties
           echo RELEASE_KEY_ALIAS="$RS_ALIAS" >> gradle.properties
