@@ -7,6 +7,7 @@ import io.legado.app.data.entities.HttpTTS
 import io.legado.app.help.file.AppFilesDirs
 import io.legado.app.help.http.header
 import io.legado.app.help.media.AvPlayerItemStatusObserver
+import io.legado.app.help.readaloud.SpeechVoiceRef
 import io.legado.app.utils.File
 import io.legado.app.utils.canonicalizeUri
 import io.legado.app.utils.ensureParentDirectory
@@ -61,7 +62,13 @@ import platform.darwin.dispatch_get_main_queue
  */
 class IosHttpTtsPlayer : HttpTtsPlayer {
 
-    private data class AudioRequest(val config: HttpTTS, val text: String, val speechRate: Int)
+    private data class AudioRequest(
+        val config: HttpTTS,
+        val text: String,
+        val speechRate: Int,
+        /** 该段音色；非空时把 `{{speakVoice}}` / `{{speakEmotion}}` 注入源模板。 */
+        val voice: SpeechVoiceRef? = null,
+    )
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var pendingRequest: AudioRequest? = null
     private var downloadJob: Job? = null
@@ -75,9 +82,14 @@ class IosHttpTtsPlayer : HttpTtsPlayer {
         else dispatch_async(dispatch_get_main_queue()) { action() }
     }
 
-    override fun setRequest(config: HttpTTS, text: String, speechRate: Int) = onMain {
+    override fun setRequest(
+        config: HttpTTS,
+        text: String,
+        speechRate: Int,
+        voice: SpeechVoiceRef?,
+    ) = onMain {
         releaseCurrent()
-        pendingRequest = AudioRequest(config.copy(), text, speechRate)
+        pendingRequest = AudioRequest(config.copy(), text, speechRate, voice)
     }
 
     /** 当前 URL, setUrl 注入。 */
@@ -193,6 +205,8 @@ class IosHttpTtsPlayer : HttpTtsPlayer {
                 withContext(Dispatchers.IO) {
                     val response = HttpTtsRequest.audioResponse(
                         request.config, request.text, request.speechRate, currentCoroutineContext(),
+                        speakVoice = request.voice?.speakerId.orEmpty(),
+                        speakEmotion = request.voice?.emotion.orEmpty(),
                     )
                     try {
                         check(file.ensureParentDirectory()) { "无法创建 TTS 缓存目录" }
