@@ -16,6 +16,7 @@ import io.legado.app.help.tts.SystemTtsEngineInfo
 import io.legado.app.help.tts.SystemTtsVoice
 import io.legado.app.utils.randomUUIDString
 import io.legado.app.utils.systemCurrentTimeMillis
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.flow.Flow
 
 /**

@@ -257,25 +257,11 @@ class IosSystemTtsEngine : SystemTtsEngine {
     private var voiceIdentifier: String? = null
 
     /**
-     * 本机可用音色。
+     * 设置当前音色（`AVSpeechSynthesisVoice.identifier`）；空 = 系统默认。
      *
-     * iOS 的音色是系统级共享资源（含「增强」「精品」等下载音色），直接把 `identifier` 当
-     * [SystemTtsVoice.id] 存进音色目录即可，换引擎不影响这个标识。
+     * 标识存下来即可，真正取回对象在 [resolvedVoice]：合成时系统里若已删掉该音色，
+     * 按默认音色念而不是抛错。
      */
-    override suspend fun listVoices(): List<SystemTtsVoice> {
-        val voices = AVSpeechSynthesisVoice.speechVoices()
-        return voices.mapNotNull { item ->
-            val voice = item as? AVSpeechSynthesisVoice ?: return@mapNotNull null
-            val identifier = voice.identifier
-            if (identifier.isBlank()) return@mapNotNull null
-            SystemTtsVoice(
-                id = identifier,
-                label = voice.name,
-                locale = voice.language,
-            )
-        }.sortedBy { it.label }
-    }
-
     override fun setVoice(speakerId: String?) {
         voiceIdentifier = speakerId?.takeIf { it.isNotBlank() }
     }

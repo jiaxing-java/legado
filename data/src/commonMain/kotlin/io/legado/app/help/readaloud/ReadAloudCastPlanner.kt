@@ -38,11 +38,35 @@ object ReadAloudCastPlanner {
      *
      * 保留分段本身（不只是音色表）是为了让「手动分配」页能列出用户刚听过的那一章 ——
      * 章节正文在 UI 侧不一定拿得到，而朗读链路已经切过一次段了，直接复用这份坐标最省事。
+     *
+     * **不要改成 `object : LinkedHashMap(...)` 覆写 `removeEldestEntry`**：Kotlin/Native 的
+     * `LinkedHashMap` 是 final，继承在 iOS 目标直接报 `This type is final, so it cannot be
+     * extended`，而 JVM/Android 编译完全正常 —— 只有 `stage=ipa`/`klib` 会暴露。
+     * 这里用「删了再插 = 移到末尾」维护访问序，超容量从头部淘汰。
      */
-    private val cache = object : LinkedHashMap<String, List<CastSegment>>(16, 0.75f, true) {
-        override fun removeEldestEntry(
-            eldest: MutableMap.MutableEntry<String, List<CastSegment>>?,
-        ): Boolean = size > MAX_CACHE_ENTRIES
+    private val cache = LinkedHashMap<String, List<CastSegment>>()
+
+    /** 命中则把该 key 移到访问序末尾（调用方须持有 [lock]）。 */
+    private fun cacheGet(key: String): List<CastSegment>? {
+        val hit = cache.remove(key) ?: return null
+        cache[key] = hit
+        return hit
+    }
+
+    /** 写入并淘汰最久未用的条目（调用方须持有 [lock]）。 */
+    private fun cachePut(key: String, value: List<CastSegment>) {
+        cache.remove(key)
+        cache[key] = value
+        while (cache.size > MAX_CACHE_ENTRIES) {
+            val oldest = cache.keys.firstOrNull() ?: break
+            cache.remove(oldest)
+        }
+    }
+
+    /** 按 key 前缀取最近一次解析（访问序末尾优先，调用方须持有 [lock]）。 */
+    private fun cacheFindByPrefix(prefix: String): List<CastSegment>? {
+        val key = cache.keys.lastOrNull { it.startsWith(prefix) } ?: return null
+        return cacheGet(key)
     }
 
     /** 上一次解析用的开关状态；总开关或旁白音色变了就整体作废。 */
@@ -89,7 +113,7 @@ object ReadAloudCastPlanner {
                 lastMultiRole = multiRole
                 lastNarratorVoiceId = narratorVoiceId
             }
-            cache[key]?.let { return it }
+            cacheGet(key)?.let { return it }
         }
 
         val resolved = runCatching {
@@ -107,7 +131,7 @@ object ReadAloudCastPlanner {
             // 查库失败按「没有多角色」继续播：朗读比换声重要
             emptyList()
         }
-        synchronized(lock) { cache[key] = resolved }
+        synchronized(lock) { cachePut(key, resolved) }
         return resolved
     }
 
@@ -120,7 +144,7 @@ object ReadAloudCastPlanner {
         if (bookUrl.isEmpty()) return null
         val prefix = "$bookUrl|$chapterIndex|"
         synchronized(lock) {
-            return cache.entries.firstOrNull { it.key.startsWith(prefix) }?.value
+            return cacheFindByPrefix(prefix)
         }
     }
 
