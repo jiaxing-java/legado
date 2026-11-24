@@ -31,6 +31,19 @@ data class SpeechVoiceRef(
 ) {
     val isNarrator: Boolean get() = roleType == ROLE_NARRATOR
 
+    /**
+     * 音频缓存文件名里的音色维度（写进 hash，不写进路径）。
+     *
+     * 三样都算：`voiceId`（哪条音色配置）、`speakerId`（引擎侧音色）、`emotion`（影响合成结果）。
+     * `voiceEffect` 不进 —— 变声是拿到音频之后的本地处理，不影响合成产物。
+     * 全空时返回空串，调用方据此走旧 hash，单音色用户的存量缓存不失效。
+     */
+    val cacheTag: String
+        get() {
+            if (voiceId.isEmpty() && speakerId.isEmpty() && emotion.isEmpty()) return ""
+            return "$voiceId|$speakerId|$emotion"
+        }
+
     companion object {
         const val ROLE_NARRATOR = "narrator"
         const val ROLE_CHARACTER = "character"

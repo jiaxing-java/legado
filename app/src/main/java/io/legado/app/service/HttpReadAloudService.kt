@@ -173,7 +173,12 @@ class HttpReadAloudService : BaseReadAloudService(),
             downloadTaskActiveLock.withLock {
                 ensureActive()
                 val httpTts = ReadAloud.httpTTS ?: throw NoStackTraceException("tts is null")
-                val preDownloadContents = readBook?.nextTextChapter?.value?.let {
+                // 段级音色与段落表必须一次取到同一版本，否则换章瞬间会把上一章的音色配给新章
+                val playback = readAloudController.playbackQueue.snapshot
+                val multiRole = playback.voices.isNotEmpty()
+                // 多角色下不预下载下一章：下一章的段级音色要在这一层解析下一章的 plan（正文 + 分词）
+                // 才拿得到，当前没有；而按无音色写出的文件带了不同的文件名，正式播放必然 miss，白下。
+                val preDownloadContents = if (multiRole) null else readBook?.nextTextChapter?.value?.let {
                     ReadAloudQueue.splitParagraphsSequence(
                         it.getNeedReadAloud(0, readAloudByPage, 0, 1)
                     )
@@ -188,6 +193,8 @@ class HttpReadAloudService : BaseReadAloudService(),
                     callback = downloadCallback(currentPlaybackToken),
                     coroutineContext = currentCoroutineContext(),
                     preDownloadContents = preDownloadContents,
+                    // contentList 只放当前段，所以下标 0 对应队列里的 nowSpeak
+                    voiceAt = { index -> playback.voiceAt(playback.nowSpeak + index) },
                 )
             }
         }.onError {
@@ -209,6 +216,9 @@ class HttpReadAloudService : BaseReadAloudService(),
                         downloader.download(null)
                     }
                 }
+                // 与段落表同源取一次快照：当前段的音色只在同一版本里有效
+                val playback = readAloudController.playbackQueue.snapshot
+                val currentVoice = playback.voiceAt(playback.nowSpeak)
                 listOf(currentPlaybackText).forEach { text ->
                     ensureActive()
                     val speakText = text.replace(AppPattern.notReadAloudRegex, "")
@@ -216,9 +226,9 @@ class HttpReadAloudService : BaseReadAloudService(),
                         AppLog.put("阅读段落内容为空，使用无声音频代替。\n朗读文本：$text")
                     }
                     val fileName = downloadScheduler.md5SpeakFileName(
-                        text, textChapter?.title, ReadAloud.httpTTS?.url
+                        text, textChapter?.title, ReadAloud.httpTTS?.url, currentVoice
                     )
-                    val dataSourceFactory = createDataSourceFactory(httpTts, speakText)
+                    val dataSourceFactory = createDataSourceFactory(httpTts, speakText, currentVoice)
                     val mediaSource =
                         createMediaSource(dataSourceFactory, fileName, currentPlaybackToken)
                     scope.launch(Main) {
@@ -227,7 +237,10 @@ class HttpReadAloudService : BaseReadAloudService(),
                         }
                     }
                 }
-                preDownloadAudiosStream(httpTts, downloaderChannel)
+                // 多角色下预下载写出的文件不带音色 tag，正式播放必然 miss，白占流量与缓存
+                if (playback.voices.isEmpty()) {
+                    preDownloadAudiosStream(httpTts, downloaderChannel)
+                }
             }
         }.onError {
             AppLog.put("朗读下载出错\n${it.localizedMessage}", it, true)
@@ -259,7 +272,8 @@ class HttpReadAloudService : BaseReadAloudService(),
 
     private fun createDataSourceFactory(
         httpTts: HttpTTS,
-        speakText: String
+        speakText: String,
+        voice: io.legado.app.help.readaloud.SpeechVoiceRef? = null,
     ): CacheDataSource.Factory {
         val upstreamFactory = DataSource.Factory {
             InputStreamDataSource {
@@ -268,7 +282,9 @@ class HttpReadAloudService : BaseReadAloudService(),
                 } else {
                     kotlin.runCatching {
                         runBlocking(lifecycleScope.coroutineContext[Job]!!) {
-                            downloadScheduler.getSpeakStream(httpTts, speakText, currentCoroutineContext())
+                            downloadScheduler.getSpeakStream(
+                                httpTts, speakText, currentCoroutineContext(), voice
+                            )
                         }
                     }.onFailure {
                         when (it) {

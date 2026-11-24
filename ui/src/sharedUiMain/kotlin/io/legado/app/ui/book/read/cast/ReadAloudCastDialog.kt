@@ -106,11 +106,28 @@ fun ReadAloudCastDialog(
     var tab by remember { mutableIntStateOf(0) }
     var editingCharacter by remember { mutableStateOf<CastCharacter?>(null) }
     var editingRule by remember { mutableStateOf<RegexCastRule?>(null) }
+    // 声音池成员管理：非空 = 进了某个池的二级页，此时底部动作换成「完成」
+    var editingPool by remember { mutableStateOf<VoicePoolEntity?>(null) }
+    // 非空 = 正在输入新池名（内联在池列表顶部，不弹第二次对话框）
+    var newPoolName by remember { mutableStateOf<String?>(null) }
+    var poolError by remember { mutableStateOf<String?>(null) }
 
-    val title = if (editingCharacter != null || editingRule != null) {
-        if (editingRule != null) "编辑规则" else "编辑角色"
-    } else {
-        "角色配音"
+    val poolMemberRows by repo.flowPoolMembers().collectAsState(emptyList())
+    // 只算启用中的成员：停用的音色不应出现在角色音色候选里
+    val voiceIdsByPool = remember(poolMemberRows) {
+        poolMemberRows.filter { it.enabled }
+            .groupBy({ it.poolId }, { it.voiceId })
+            .mapValues { it.value.toSet() }
+    }
+    // 角色表存的是池**名**（`poolLabel` 是字符串标签，删池后角色仍保留该标签），成员表用的是
+    // 池 id，这里必须做一次名字 → id 映射，否则「按池过滤音色」永远取不到东西
+    val poolIdByName = remember(pools) { pools.associate { it.name to it.id } }
+
+    val title = when {
+        editingRule != null -> "编辑规则"
+        editingCharacter != null -> "编辑角色"
+        editingPool != null -> editingPool?.name.orEmpty()
+        else -> "角色配音"
     }
 
     AppDialogScaffold(
@@ -123,6 +140,7 @@ fun ReadAloudCastDialog(
             when {
                 editingCharacter != null -> editingCharacter = null
                 editingRule != null -> editingRule = null
+                editingPool != null -> editingPool = null
                 else -> onDismissRequest()
             }
         },
@@ -170,15 +188,33 @@ fun ReadAloudCastDialog(
                     )
                 }
 
-                else -> {
+                editingPool != null -> {
+                    Spacer(Modifier.weight(1f))
                     AppTextButton(
-                        text = if (tab == 2) "新增规则" else "新增角色",
+                        text = "完成",
+                        color = colors.accent,
+                        onClick = { editingPool = null },
+                    )
+                }
+
+                else -> {
+                    val actionLabel = when (tab) {
+                        2 -> "新增规则"
+                        3 -> "新增声音池"
+                        else -> "新增角色"
+                    }
+                    AppTextButton(
+                        text = actionLabel,
                         color = colors.accent,
                         onClick = {
-                            if (tab == 2) {
-                                editingRule = RegexCastRule(name = "", pattern = "")
-                            } else {
-                                editingCharacter = newCharacter(bookUrl)
+                            when (tab) {
+                                2 -> editingRule = RegexCastRule(name = "", pattern = "")
+                                3 -> {
+                                    newPoolName = ""
+                                    poolError = null
+                                }
+
+                                else -> editingCharacter = newCharacter(bookUrl)
                             }
                         },
                     )
@@ -189,12 +225,16 @@ fun ReadAloudCastDialog(
     ) {
         val character = editingCharacter
         val rule = editingRule
+        val pool = editingPool
         when {
             character != null -> CharacterForm(
                 character = character,
                 pools = pools,
                 voices = voices,
                 effects = effects,
+                // 角色选了池且池内已有启用音色时，候选收窄到池内；空池回落全部音色，
+                // 否则「新建池 → 建角色」会一个音色都挑不到
+                poolVoiceIds = voiceIdsByPool[poolIdByName[character.poolLabel]].orEmpty(),
                 onChange = { editingCharacter = it },
             )
 
@@ -202,6 +242,18 @@ fun ReadAloudCastDialog(
                 rule = rule,
                 voices = voices,
                 onChange = { editingRule = it },
+            )
+
+            pool != null -> PoolMemberEditor(
+                pool = pool,
+                voices = voices,
+                memberVoiceIds = voiceIdsByPool[pool.id].orEmpty(),
+                onToggle = { voiceId, checked ->
+                    scope.launch {
+                        repo.setPoolMember(pool.id, voiceId, checked)
+                        ReadAloudCastPlanner.invalidate()
+                    }
+                },
             )
 
             else -> {
@@ -242,7 +294,7 @@ fun ReadAloudCastDialog(
                         },
                     )
 
-                    else -> RuleList(
+                    2 -> RuleList(
                         rules = rules,
                         onEdit = { editingRule = it },
                         onToggle = { target, enabled ->
@@ -254,6 +306,36 @@ fun ReadAloudCastDialog(
                         onDelete = { target ->
                             scope.launch {
                                 repo.deleteRegexRule(target)
+                                ReadAloudCastPlanner.invalidate()
+                            }
+                        },
+                    )
+
+                    else -> PoolList(
+                        pools = pools,
+                        voices = voices,
+                        voiceIdsByPool = voiceIdsByPool,
+                        newPoolName = newPoolName,
+                        error = poolError,
+                        onNewNameChange = { newPoolName = it },
+                        onCreate = { name ->
+                            scope.launch {
+                                runCatching { repo.createPool(name) }
+                                    .onSuccess {
+                                        newPoolName = null
+                                        poolError = null
+                                    }
+                                    .onFailure { poolError = "池名重复或写入失败：${it.message}" }
+                            }
+                        },
+                        onCancelCreate = {
+                            newPoolName = null
+                            poolError = null
+                        },
+                        onOpen = { editingPool = it },
+                        onDelete = { target ->
+                            scope.launch {
+                                repo.deletePool(target)
                                 ReadAloudCastPlanner.invalidate()
                             }
                         },
@@ -280,7 +362,7 @@ private fun TabRow(tab: Int, onSelect: (Int) -> Unit) {
             .padding(horizontal = DesignTokens.spacingDefault),
         horizontalArrangement = Arrangement.spacedBy(DesignTokens.spacingMd),
     ) {
-        listOf("角色", "本章台词", "正则规则").forEachIndexed { index, label ->
+        listOf("角色", "本章台词", "规则", "声音池").forEachIndexed { index, label ->
             val selected = tab == index
             Text(
                 text = label,
@@ -366,14 +448,188 @@ private fun CharacterList(
     }
 }
 
+/**
+ * 声音池列表。
+ *
+ * 池在这里不是归档标签，而是**音色候选集合**：角色选了某个池，音色菜单就只列池内启用成员。
+ * 所以每一行必须给出成员数 —— 空池与「配好但忘了勾」看起来一样，用户会以为过滤没生效。
+ */
+@Composable
+private fun PoolList(
+    pools: List<VoicePoolEntity>,
+    voices: List<ReadAloudVoiceEntity>,
+    voiceIdsByPool: Map<String, Set<String>>,
+    newPoolName: String?,
+    error: String?,
+    onNewNameChange: (String) -> Unit,
+    onCreate: (String) -> Unit,
+    onCancelCreate: () -> Unit,
+    onOpen: (VoicePoolEntity) -> Unit,
+    onDelete: (VoicePoolEntity) -> Unit,
+) {
+    val colors = AppTheme.colors
+    Column(Modifier.fillMaxWidth()) {
+        if (newPoolName != null) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = DesignTokens.spacingDefault),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.spacingXs),
+            ) {
+                AppTextField(
+                    value = newPoolName,
+                    onValueChange = onNewNameChange,
+                    label = "新声音池名称",
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AppTextButton(
+                        text = stringResource(Res.string.cancel),
+                        color = colors.secondaryText,
+                        onClick = onCancelCreate,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    AppTextButton(
+                        text = "创建",
+                        color = colors.accent,
+                        enabled = newPoolName.isNotBlank(),
+                        onClick = { onCreate(newPoolName.trim()) },
+                    )
+                }
+                if (error != null) {
+                    Text(
+                        text = error,
+                        color = colors.secondaryText,
+                        modifier = Modifier.padding(bottom = DesignTokens.spacingXs),
+                    )
+                }
+            }
+        }
+        if (pools.isEmpty()) {
+            EmptyHint("还没有声音池。新建一个池并勾选常用音色，给角色挑音色时就只需要看这一小撮。")
+            return@Column
+        }
+        LazyColumn(Modifier.fillMaxWidth()) {
+            items(pools, key = { it.id }) { pool ->
+                val memberCount = voiceIdsByPool[pool.id].orEmpty().size
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = DesignTokens.spacingDefault,
+                            vertical = DesignTokens.spacingMd,
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = pool.name,
+                            color = colors.primaryText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = if (memberCount == 0) {
+                                "未勾选音色（角色仍能看到全部音色）"
+                            } else {
+                                "$memberCount 个音色"
+                            },
+                            color = colors.secondaryText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    AppTextButton(
+                        text = "管理",
+                        color = colors.accent,
+                        onClick = { onOpen(pool) },
+                    )
+                    AppTextButton(
+                        text = stringResource(Res.string.delete),
+                        color = colors.secondaryText,
+                        onClick = { onDelete(pool) },
+                    )
+                }
+            }
+        }
+        // voices 参与签名是为了在音色目录还没同步时给出下一步指引，而不是只列一堆空池
+        if (voices.isEmpty()) {
+            EmptyHint("音色目录为空：先到「朗读设置 → 系统语音引擎」里选一次引擎，音色会随引擎一起读出来。")
+        }
+    }
+}
+
+/**
+ * 池内音色勾选。
+ *
+ * 取消勾选写成 `enabled = false` 而不是删行：用户在「取消勾选 → 发现选错了 → 再勾回来」
+ * 之间来回时，删行会让成员关系彻底消失（下次同步音色目录也无从恢复判断）。
+ */
+@Composable
+private fun PoolMemberEditor(
+    pool: VoicePoolEntity,
+    voices: List<ReadAloudVoiceEntity>,
+    memberVoiceIds: Set<String>,
+    onToggle: (String, Boolean) -> Unit,
+) {
+    val colors = AppTheme.colors
+    if (voices.isEmpty()) {
+        EmptyHint("音色目录为空：先到「朗读设置 → 系统语音引擎」里选一次引擎，音色会随引擎一起读出来。")
+        return
+    }
+    Column(Modifier.fillMaxWidth()) {
+        Text(
+            text = "勾选的音色成为「${pool.name}」的候选。给角色选了这个池之后，音色菜单只列这些。",
+            color = colors.secondaryText,
+            modifier = Modifier.padding(
+                horizontal = DesignTokens.spacingDefault,
+                vertical = DesignTokens.spacingMd,
+            ),
+        )
+        LazyColumn(Modifier.fillMaxWidth()) {
+            items(voices, key = { it.id }) { voice ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = DesignTokens.spacingDefault,
+                            vertical = DesignTokens.spacingXs,
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = voice.displayName,
+                        color = colors.primaryText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AppSwitch(
+                        checked = voice.id in memberVoiceIds,
+                        onCheckedChange = { onToggle(voice.id, it) },
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun CharacterForm(
     character: CastCharacter,
     pools: List<VoicePoolEntity>,
     voices: List<ReadAloudVoiceEntity>,
     effects: List<VoiceEffectPreset>,
+    /** 角色所属池内启用中的音色；空集 = 池为空或未选池，此时候选回落到全部音色。 */
+    poolVoiceIds: Set<String>,
     onChange: (CastCharacter) -> Unit,
 ) {
+    // 已绑定的音色可能不在当前池里（换过池），选项表要按全量查找才显示得出名字，
+    // 只在「可选」这一层收窄
+    val candidateVoices = remember(voices, poolVoiceIds) {
+        if (poolVoiceIds.isEmpty()) voices else voices.filter { it.id in poolVoiceIds }
+    }
     Column(
         Modifier
             .fillMaxWidth()
@@ -397,7 +653,7 @@ private fun CharacterForm(
         PickerRow(
             label = "音色",
             value = voices.firstOrNull { it.id == character.voiceId }?.displayName ?: "引擎默认",
-            options = listOf("") + voices.map { it.id },
+            options = listOf("") + candidateVoices.map { it.id },
             optionLabel = { id ->
                 voices.firstOrNull { it.id == id }?.displayName ?: "引擎默认"
             },
@@ -413,6 +669,13 @@ private fun CharacterForm(
         if (voices.isEmpty()) {
             Text(
                 text = "音色目录为空：先到「朗读设置 → 系统语音引擎」里选一次引擎，音色会随引擎一起读出来。",
+                color = AppTheme.colors.secondaryText,
+                modifier = Modifier.padding(vertical = DesignTokens.spacingXs),
+            )
+        } else if (poolVoiceIds.isEmpty() && character.poolLabel.isNotBlank()) {
+            // 池存在但一个音色都没挂：不静默列全部音色，否则用户以为自己选了池却看到别的池的音色
+            Text(
+                text = "「${character.poolLabel}」池里还没有音色，当前列出全部音色。到「声音池」页签给该池勾选音色后，这里会只剩池内候选。",
                 color = AppTheme.colors.secondaryText,
                 modifier = Modifier.padding(vertical = DesignTokens.spacingXs),
             )

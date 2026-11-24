@@ -7,6 +7,7 @@ import io.legado.app.data.entities.BaseSource
 import io.legado.app.data.entities.HttpTTS
 import io.legado.app.help.copyToFileAtomically
 import io.legado.app.help.coroutine.printStackTraceOnDebug
+import io.legado.app.help.readaloud.SpeechVoiceRef
 import io.legado.app.help.writeBytesAtomically
 import io.legado.app.model.analyzeRule.AnalyzeUrlCore
 import io.legado.app.model.analyzeRule.AnalyzeUrlFactories
@@ -221,9 +222,20 @@ class HttpTtsDownloadScheduler(
 
     // region 文件路径管理
 
-    /** 计算缓存文件名（不含扩展名,不含目录）。 */
-    fun md5SpeakFileName(content: String, chapterTitle: String?, ttsUrl: String?): String =
-        HttpTtsRequest.speakFileName(chapterTitle, ttsUrl, speechRate, content)
+    /**
+     * 计算缓存文件名（不含扩展名,不含目录）。
+     *
+     * [voice] 非空时把音色并进 hash：[SpeechVoiceRef.cacheTag]，否则同一句台词换角色后
+     * 仍会命中上一次合成的音频。
+     */
+    fun md5SpeakFileName(
+        content: String,
+        chapterTitle: String?,
+        ttsUrl: String?,
+        voice: SpeechVoiceRef? = null,
+    ): String = HttpTtsRequest.speakFileName(
+        chapterTitle, ttsUrl, speechRate, content, voice?.cacheTag.orEmpty(),
+    )
 
     /** 缓存文件是否存在。 */
     fun hasSpeakFile(name: String): Boolean =
@@ -293,16 +305,20 @@ class HttpTtsDownloadScheduler(
      * @param httpTts TTS 源配置
      * @param speakText 朗读文本（已过滤不可读字符）
      * @param coroutineContext 当前协程上下文（传入避免 commonMain 调 currentCoroutineContext）
+     * @param voice 该段音色；非空时把 `{{speakVoice}}` / `{{speakEmotion}}` 注入源模板
      */
     suspend fun getSpeakStream(
         httpTts: HttpTTS,
         speakText: String,
         coroutineContext: CoroutineContext,
+        voice: SpeechVoiceRef? = null,
     ): InputStream? {
         while (true) {
             try {
                 val response = HttpTtsRequest.audioResponse(
                     httpTts, speakText, speechRate, coroutineContext, analyzeUrlFactory,
+                    speakVoice = voice?.speakerId.orEmpty(),
+                    speakEmotion = voice?.emotion.orEmpty(),
                 )
                 response.body.byteStream().let { stream ->
                     downloadErrorBreaker.reset()
@@ -366,6 +382,8 @@ class HttpTtsDownloadScheduler(
      * @param callback 播放器桥接回调
      * @param coroutineContext 当前协程上下文
      * @param preDownloadContents 下一章预下载段落序列,null 跳过预下载
+     * @param voiceAt 按 [contentList] 下标取段级音色；默认全 null = 引擎默认音色（单角色）。
+     *   音色同时进缓存文件名，换角色会重新合成而不是复用旧音频。
      */
     suspend fun downloadAndPlayAudios(
         httpTts: HttpTTS,
@@ -377,6 +395,7 @@ class HttpTtsDownloadScheduler(
         callback: HttpTtsDownloadCallback,
         coroutineContext: CoroutineContext,
         preDownloadContents: Sequence<String>? = null,
+        voiceAt: (Int) -> SpeechVoiceRef? = { null },
     ) {
         callback.onClearMediaItems()
         contentList.forEachIndexed { index, content ->
@@ -386,14 +405,15 @@ class HttpTtsDownloadScheduler(
             if (paragraphStartPos > 0 && index == nowSpeak) {
                 text = text.substring(paragraphStartPos)
             }
-            val fileName = md5SpeakFileName(text, chapterTitle, ttsUrl)
+            val voice = voiceAt(index)
+            val fileName = md5SpeakFileName(text, chapterTitle, ttsUrl, voice)
             val speakText = text.replace(AppPattern.notReadAloudRegex, "")
             if (speakText.isEmpty()) {
                 AppLog.put("阅读段落内容为空，使用无声音频代替。\n朗读文本：$text")
                 createSilentSound(fileName)
             } else if (!hasSpeakFile(fileName)) {
                 runCatching {
-                    val inputStream = getSpeakStream(httpTts, speakText, coroutineContext)
+                    val inputStream = getSpeakStream(httpTts, speakText, coroutineContext, voice)
                     if (inputStream != null) {
                         createSpeakFile(fileName, inputStream)
                     } else {

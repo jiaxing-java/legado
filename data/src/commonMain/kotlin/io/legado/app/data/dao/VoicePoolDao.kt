@@ -74,6 +74,15 @@ interface VoicePoolDao {
     @Query("select * from voice_pool_members where poolId = :poolId order by voiceId")
     fun flowMembers(poolId: String): Flow<List<VoicePoolMember>>
 
+    /**
+     * 全量成员关系。
+     *
+     * 角色表单要按「角色所属池」过滤音色候选，一次拿到所有池的成员，避免每选一个池就换一次
+     * Flow、或者在 UI 里对 N 个池各订阅一次。
+     */
+    @Query("select * from voice_pool_members")
+    fun flowAllMembers(): Flow<List<VoicePoolMember>>
+
     @Query("select * from voice_pool_members where poolId = :poolId order by voiceId")
     suspend fun members(poolId: String): List<VoicePoolMember>
 

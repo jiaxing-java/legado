@@ -152,10 +152,26 @@ object HttpTtsRequest {
         return ContentTypeVerdict.OK
     }
 
-    /** 音频缓存文件名: md5(章节名)_md5(url-|-语速-|-内容) */
-    fun speakFileName(title: String?, url: String?, speechRate: Int, content: String): String {
-        return MD5Utils.md5Encode16(title ?: "") + "_" +
-                MD5Utils.md5Encode16("$url-|-$speechRate-|-$content")
+    /**
+     * 音频缓存文件名: md5(章节名)_md5(url-|-语速-|-内容)
+     *
+     * [voiceTag] 非空时并入 hash 并加 `v2|` 前缀：同一句台词配不同角色必须落成不同文件，
+     * 否则换了角色还会命中上一次合成的音频（听感上就是「改了没生效」）。前缀让多角色 key
+     * 与旧 key 空间完全不重叠；为空时 hash 输入与旧版逐字相同，单音色用户的存量缓存不动。
+     */
+    fun speakFileName(
+        title: String?,
+        url: String?,
+        speechRate: Int,
+        content: String,
+        voiceTag: String = "",
+    ): String {
+        val key = if (voiceTag.isEmpty()) {
+            "$url-|-$speechRate-|-$content"
+        } else {
+            "v2|$url-|-$speechRate-|-$voiceTag-|-$content"
+        }
+        return MD5Utils.md5Encode16(title ?: "") + "_" + MD5Utils.md5Encode16(key)
     }
 
     /**

@@ -10,6 +10,7 @@ import io.legado.app.data.entities.RegexCastRule
 import io.legado.app.data.entities.VoiceEffectPreset
 import io.legado.app.data.entities.VoicePoolEntity
 import io.legado.app.data.entities.VoicePoolGroupEntity
+import io.legado.app.data.entities.VoicePoolMember
 import io.legado.app.help.tts.ReadAloudQueue
 import io.legado.app.help.tts.SystemTtsEngineInfo
 import io.legado.app.help.tts.SystemTtsVoice
@@ -65,6 +66,52 @@ class ReadAloudCastRepository {
         db.voicePoolDao.deleteMembersOfPool(pool.id)
         db.voicePoolDao.deletePool(pool)
     }
+
+    /**
+     * 新建声音池并返回（id 在这里生成，UI 只给名字）。
+     *
+     * 重名会撞 `voice_pools.name` 的唯一索引而抛异常 —— 调用方据此提示「已存在同名池」，
+     * 不在这里静默改成「xx(2)」：用户下次还得再找一遍自己建的是哪个。
+     */
+    suspend fun createPool(name: String): VoicePoolEntity {
+        val now = systemCurrentTimeMillis()
+        val pool = VoicePoolEntity(
+            id = randomUUIDString(),
+            name = name,
+            order = (db.voicePoolDao.pools().maxOfOrNull { it.order } ?: -1) + 1,
+            createdAt = now,
+            updatedAt = now,
+        )
+        db.voicePoolDao.upsertPools(pool)
+        return pool
+    }
+
+    // region 池成员
+
+    fun flowPoolMembers(): Flow<List<VoicePoolMember>> = db.voicePoolDao.flowAllMembers()
+
+    suspend fun poolMembers(poolId: String): List<VoicePoolMember> =
+        db.voicePoolDao.members(poolId)
+
+    /**
+     * 池子 → 启用中的音色 id 集合，角色表单据此收窄候选。
+     *
+     * 池里一个音色都没有时调用方应回落到「全部音色」：空池收窄成空列表会让角色一个音色都
+     * 挑不到，看起来像功能坏了。
+     */
+    suspend fun enabledVoiceIdsByPool(): Map<String, Set<String>> =
+        db.voicePoolDao.allMembers()
+            .filter { it.enabled }
+            .groupBy({ it.poolId }, { it.voiceId })
+            .mapValues { it.value.toSet() }
+
+    suspend fun setPoolMember(poolId: String, voiceId: String, enabled: Boolean) =
+        db.voicePoolDao.upsertMembers(VoicePoolMember(poolId, voiceId, enabled))
+
+    suspend fun removePoolMember(poolId: String, voiceId: String) =
+        db.voicePoolDao.deleteMember(poolId, voiceId)
+
+    // endregion
 
     suspend fun savePoolGroup(group: VoicePoolGroupEntity) = db.voicePoolDao.upsertGroups(group)
 
