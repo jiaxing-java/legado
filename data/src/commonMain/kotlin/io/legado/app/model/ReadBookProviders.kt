@@ -114,6 +114,9 @@ object ActiveReadAloudHostPorts : ReadAloudHostPorts {
 
     val currentReadBook: ReadBookShared? get() = ownerSnapshot?.readBook
     val currentChapter: TextChapterShared? get() = ownerSnapshot?.readBook?.curTextChapter?.value
+
+    /** 当前朗读书的 bookUrl；阅读实例不在或还没装载书时为空串（多角色据此降级）。 */
+    override val bookUrl: String get() = ownerSnapshot?.readBook?.bookValue?.bookUrl.orEmpty()
     fun moveToNextPage(origin: PositionOrigin = PositionOrigin.User): Boolean =
         ownerSnapshot?.moveToNextPage(origin) ?: false
     fun uploadProgress() = ownerSnapshot?.uploadProgress()

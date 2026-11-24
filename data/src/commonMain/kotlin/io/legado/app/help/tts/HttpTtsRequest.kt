@@ -37,10 +37,19 @@ object HttpTtsRequest {
         config.speed?.let { (it + 5).coerceIn(0, 90) } ?: globalRate
 
     /** 注入 url 模板 JS 作用域的变量表 */
-    fun speakVariables(speakText: String, speakSpeed: Int): Map<AppConst.JsVarName, Any> {
+    fun speakVariables(
+        speakText: String,
+        speakSpeed: Int,
+        speakVoice: String = "",
+        speakEmotion: String = "",
+    ): Map<AppConst.JsVarName, Any> {
         return mapOf(
             AppConst.JsVarName.SPEAK_TEXT to speakText,
             AppConst.JsVarName.SPEAK_SPEED to speakSpeed,
+            // 多角色：源里写 {{speakVoice}} / {{speakEmotion}} 就会按角色换音色；
+            // 单音色时两者为空串，源若没用这两个变量则完全无感
+            AppConst.JsVarName.SPEAK_VOICE to speakVoice,
+            AppConst.JsVarName.SPEAK_EMOTION to speakEmotion,
         )
     }
 
@@ -56,6 +65,10 @@ object HttpTtsRequest {
                 coroutineContext = ctx, variables = variables,
             )
         },
+        /** 该段说话人（`SpeechVoiceRef.speakerId`）；空 = 源里的 `{{speakVoice}}` 得到空串。 */
+        speakVoice: String = "",
+        /** 该段情绪；空 = 源里的 `{{speakEmotion}}` 得到空串。 */
+        speakEmotion: String = "",
     ): KmpResponse {
         val speakSpeed = resolveSpeakSpeed(config, speechRate)
         // 同一源的实时/试听/预合成共用一个配额，避免多路并发把上游打出 429。
@@ -63,7 +76,7 @@ object HttpTtsRequest {
             config.id.toString(),
             config.synthesisThreadCount,
         ) {
-            doAudioResponse(config, text, speakSpeed, context, factory)
+            doAudioResponse(config, text, speakSpeed, context, factory, speakVoice, speakEmotion)
         }
     }
 
@@ -73,9 +86,12 @@ object HttpTtsRequest {
         speakSpeed: Int,
         context: CoroutineContext,
         factory: HttpTtsAnalyzeUrlFactory,
+        speakVoice: String = "",
+        speakEmotion: String = "",
     ): KmpResponse {
         val request = factory.create(
-            config.url, config, READ_TIMEOUT_MS, context, speakVariables(text, speakSpeed),
+            config.url, config, READ_TIMEOUT_MS, context,
+            speakVariables(text, speakSpeed, speakVoice, speakEmotion),
         )
         var response = request.getResponseAwait()
         try {

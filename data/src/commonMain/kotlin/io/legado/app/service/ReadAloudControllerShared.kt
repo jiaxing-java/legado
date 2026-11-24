@@ -6,6 +6,8 @@ import io.legado.app.data.AppDbProviders
 import io.legado.app.data.entities.HttpTTS
 import io.legado.app.help.casUpdate
 import io.legado.app.help.config.AppConfigProviders
+import io.legado.app.help.readaloud.ReadAloudUiState
+import io.legado.app.help.readaloud.SpeechVoiceRef
 import io.legado.app.help.tts.HttpTtsPlayer
 import io.legado.app.help.tts.HttpTtsPlayerListener
 import io.legado.app.help.tts.ReadAloudQueue
@@ -78,6 +80,14 @@ class ReadAloudControllerShared(
     )
 
     private val systemRoute = atomic<SystemTtsRoute?>(null)
+
+    /**
+     * 已经下发给系统引擎的音色（`speakerId`）；null = 引擎默认。
+     *
+     * 用来跳过同音色的重复 `setVoice`：一段一个音色时每句都调一次会让部分引擎重建内部
+     * 播放器，句间出现可听出来的空档。换引擎（[start] 重建路由）时复位。
+     */
+    private val appliedSystemVoice = atomic<String?>(null)
 
     /** 系统路由序号: 每条路由的 utteranceId 前缀唯一, 否则并发注册的两条订阅会收到同一段回调。 */
     private val systemRunCount = atomic(0L)
@@ -412,6 +422,11 @@ class ReadAloudControllerShared(
             _currentText.value = ""
             chapterNavigation.moveToChapter(index)
             _chapterSize.value = chapterData.chapterCount
+            ReadAloudUiState.publishChapter(
+                chapterIndex = index,
+                chapterCount = _chapterSize.value,
+                chapterTitle = chapterData.chapterTitle(index),
+            )
 
             val plan = runCatching {
                 chapterData.loadChapterPlan(index, position, lastSpeakable)
@@ -436,6 +451,7 @@ class ReadAloudControllerShared(
                 readAloudNumber = plan.chapterPosition,
                 paragraphStartPos = plan.paragraphOffset,
                 separators = plan.separators,
+                voices = plan.voices,
             )
             if (playbackQueue.seekSpeakable().currentParagraph() != null) {
                 if (skipped > 0) {
@@ -603,12 +619,18 @@ class ReadAloudControllerShared(
         _currentText.value = ""
         chapterNavigation.moveToChapter(index)
         _chapterSize.value = chapterData.chapterCount
+        ReadAloudUiState.publishChapter(
+            chapterIndex = index,
+            chapterCount = _chapterSize.value,
+            chapterTitle = chapterData.chapterTitle(index),
+        )
         playbackQueue.reset(
             contentList = plan.paragraphs,
             nowSpeak = plan.paragraphIndex,
             readAloudNumber = plan.chapterPosition,
             paragraphStartPos = plan.paragraphOffset,
             separators = plan.separators,
+            voices = plan.voices,
         )
         playbackQueue.seekSpeakable()
     }
@@ -779,26 +801,30 @@ class ReadAloudControllerShared(
         val speakable = seekSpeakableParagraph() ?: return
         val playback = speakable.playback
         val text = speakable.text
+        // 段级音色与段文本同源取值: 换章瞬间不会把上一章的音色配给新章第一段
+        val voice = playback.voiceAt(playback.nowSpeak)
         _paragraphIndex.value = playback.nowSpeak
         _chapterPosition.value = playback.readAloudNumber
         _speakPosition.value = playback.readAloudNumber
         _currentText.value = text
+        ReadAloudUiState.publishSentence(text, playback.nowSpeak)
         val playbackText = text.substring(playback.paragraphStartPos.coerceIn(0, text.length))
         val token = playbackToken.incrementAndGet()
         // 先占轮次 (旧回调立即失效); 系统路再整份补上 utteranceId
         publishPlaybackRound(PlaybackRound(token, null))
         val http = httpRoute.value
         if (playbackPort != null) {
-            playbackPort.onPlay(playbackText, _paragraphIndex.value, token)
+            playbackPort.onPlay(playbackText, _paragraphIndex.value, token, voice)
         } else if (http != null) {
             http.player.listener = httpTtsProgressListener(token, http.player)
-            playHttpTtsCurrent(http, playbackText)
+            playHttpTtsCurrent(http, playbackText, voice)
         } else {
             val route = systemRoute.value ?: run {
                 _lastError.tryEmit("未注册 TTS 引擎")
                 _state.value = ReadAloudState.ERROR
                 return
             }
+            applySystemVoice(route.engine, voice)
             val utteranceId = route.utterancePrefix + playback.nowSpeak + "_" + token
             publishPlaybackRound(PlaybackRound(token, utteranceId))
             if (!route.engine.speak(playbackText, utteranceId)) {
@@ -808,6 +834,19 @@ class ReadAloudControllerShared(
                 _state.value = ReadAloudState.ERROR
             }
         }
+    }
+
+    /**
+     * 只有换人时才改引擎音色。
+     *
+     * `setVoice` 在部分引擎上会触发内部重建，逐段调用会让每句之间多出几十毫秒空档；
+     * 旁白连续几十段用的是同一个音色，比对后跳过是这条链路不卡顿的前提。
+     */
+    private fun applySystemVoice(engine: SystemTtsEngine, voice: SpeechVoiceRef?) {
+        val target = voice?.speakerId?.takeIf { it.isNotBlank() }
+        if (appliedSystemVoice.value == target) return
+        engine.setVoice(target)
+        appliedSystemVoice.value = target
     }
 
     /**
@@ -822,14 +861,14 @@ class ReadAloudControllerShared(
     /** 请求代次；异步 URL 求值完成时只允许当前代次提交给播放器。 */
     private val requestGeneration = atomic(0L)
 
-    private fun playHttpTtsCurrent(route: HttpTtsRoute, text: String) {
+    private fun playHttpTtsCurrent(route: HttpTtsRoute, text: String, voice: SpeechVoiceRef? = null) {
         val generation = requestGeneration.incrementAndGet()
         val speakText = text.replace(AppPattern.notReadAloudRegex, "")
         runCatching {
             if (generation != requestGeneration.value || _state.value != ReadAloudState.PLAYING) {
                 return
             }
-            route.player.setRequest(route.config, speakText, route.speechRate)
+            route.player.setRequest(route.config, speakText, route.speechRate, voice)
         }.onSuccess {
             if (generation != requestGeneration.value || _state.value != ReadAloudState.PLAYING) {
                 return@onSuccess
@@ -910,6 +949,8 @@ class ReadAloudControllerShared(
      */
     private fun stopInternal(clearState: Boolean) {
         invalidatePlayback()
+        // 引擎可能被 stop 后重建（Android 空闲释放），已下发的音色随之失效，下次播放必须重设
+        appliedSystemVoice.value = null
         // 一次取走整条 HttpTTS 路由: 源配置与播放器同源, 释放后不再被任何读点取到
         val http = takeHttpTtsRoute()
         if (http != null) {
@@ -929,6 +970,7 @@ class ReadAloudControllerShared(
             clearQueue()
             _chapterIndex.value = -1
             _paragraphIndex.value = -1
+            ReadAloudUiState.clear()
             _chapterPosition.value = 0
             _currentText.value = ""
         }
@@ -994,6 +1036,13 @@ data class ReadAloudChapterPlan(
     val chapterPosition: Int = 0,
     /** 每段之后到下一段之间的原始字符数；空表 = 全部按 1（旧行为）。 */
     val separators: List<Int> = emptyList(),
+    /**
+     * 与 [paragraphs] 等长的段级音色表；空表 = 全用引擎默认音色。
+     *
+     * 由 [ReadAloudPlanBuilder] 在切段后一次算出并随计划一起发布：换章时段落表与音色表必须
+     * 同源，分开取会出现「新章的段配上一章的音色」。
+     */
+    val voices: List<io.legado.app.help.readaloud.SpeechVoiceRef?> = emptyList(),
 )
 
 /**
@@ -1009,6 +1058,17 @@ data class ReadAloudChapterPlan(
  */
 interface ReadAloudChapterDataPort {
     val chapterCount: Int
+
+    /**
+     * 正在朗读的书（`Book.bookUrl`）；空串 = 该端拿不到。
+     *
+     * 多角色要按 `bookUrl` 找角色与分配，端口不提供时多角色自然降级为单音色，朗读本身不受影响。
+     */
+    val bookUrl: String get() = ""
+
+    /** 章节标题；空串 = 该端拿不到（播放页退化为「第 N 章」）。 */
+    fun chapterTitle(chapterIndex: Int): String = ""
+
     fun loadChapterPlan(
         chapterIndex: Int,
         chapterPosition: Int = 0,
@@ -1031,7 +1091,19 @@ fun interface ReadAloudChapterNavigationPort {
 
 /** 平台播放器端口；Android Service 用它保留系统播放外壳而复用本控制器业务状态机。 */
 interface ReadAloudPlaybackPort {
-    fun onPlay(text: String, paragraphIndex: Int, playbackToken: Long)
+    /**
+     * 播一段正文。
+     *
+     * [voice] 是该段的音色（多角色时非 null，单音色/旁白未绑定为 null）：Android 侧要在
+     * `speak` 之前把它交给自己的 `TextToSpeech` 实例，不能只依赖共享层。
+     */
+    fun onPlay(
+        text: String,
+        paragraphIndex: Int,
+        playbackToken: Long,
+        voice: SpeechVoiceRef? = null,
+    )
+
     fun onStop()
     fun onPause()
     fun onResume(): Boolean

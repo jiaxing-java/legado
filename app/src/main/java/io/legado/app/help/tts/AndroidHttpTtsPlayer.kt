@@ -73,7 +73,13 @@ class AndroidHttpTtsPlayer : HttpTtsPlayer {
     @Volatile
     private var listenerField: HttpTtsPlayerListener? = null
 
-    private class AudioRequest(val config: HttpTTS, val text: String, val speechRate: Int)
+    private class AudioRequest(
+        val config: HttpTTS,
+        val text: String,
+        val speechRate: Int,
+        val speakVoice: String = "",
+        val speakEmotion: String = "",
+    )
 
     override val isPlaying: Boolean
         get() = exoPlayer?.isPlaying == true
@@ -102,10 +108,21 @@ class AndroidHttpTtsPlayer : HttpTtsPlayer {
         }
     }
 
-    override fun setRequest(config: HttpTTS, text: String, speechRate: Int) {
+    override fun setRequest(
+        config: HttpTTS,
+        text: String,
+        speechRate: Int,
+        voice: io.legado.app.help.readaloud.SpeechVoiceRef?,
+    ) {
         onMain {
             releaseCurrent()
-            pendingRequest = AudioRequest(config.copy(), text, speechRate)
+            pendingRequest = AudioRequest(
+                config.copy(),
+                text,
+                speechRate,
+                voice?.speakerId.orEmpty(),
+                voice?.emotion.orEmpty(),
+            )
         }
     }
 
@@ -141,6 +158,8 @@ class AndroidHttpTtsPlayer : HttpTtsPlayer {
                         val response = HttpTtsRequest.audioResponse(
                             request.config, request.text, request.speechRate,
                             currentCoroutineContext(),
+                            speakVoice = request.speakVoice,
+                            speakEmotion = request.speakEmotion,
                         )
                         try {
                             check(file.ensureParentDirectory()) { "无法创建 TTS 缓存目录" }

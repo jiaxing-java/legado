@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.Icon
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -53,7 +54,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
+import io.legado.app.help.readaloud.ReadAloudUiState
+import io.legado.app.ui.book.read.readaloud.ReadAloudPlayerPanel
 import io.legado.app.ui.compose.component.AppBottomSheetDialog
 import io.legado.app.ui.compose.component.AppSelectorDialog
 import io.legado.app.ui.compose.component.AppSheetSurface
@@ -149,6 +153,10 @@ fun ReadAloudDialog(
     var timerMenuExpanded by remember { mutableStateOf(false) }
     // 内容侧带动画收起 (对照原版 dismissAllowingStateLoss 的动画语义; 不在弹层内时兜底直关)
     val requestDismiss = LocalSheetDismissRequest.current ?: onDismiss
+    // 播放页展开态: 全屏面板与朗读面板在同一组合树里, 收起即回到这张面板
+    var playerExpanded by remember { mutableStateOf(false) }
+    val playerSnapshot by ReadAloudUiState.snapshot.collectAsState()
+    val appNavigator = io.legado.app.ui.root.LocalAppNavigator.current
 
     // 底部弹层 (对照原版 BaseBottomDialogFragment: 窗口 MATCH_PARENT 全宽贴底;
     // 内容 8dp 间距由下方 Column padding 提供)
@@ -164,6 +172,38 @@ fun ReadAloudDialog(
                     .fillMaxWidth()
                     .padding(horizontal = DesignTokens.spacingDefault, vertical = DesignTokens.spacingDefault),
             ) {
+                // 现在念到哪: 章节 + 当前句 + 展开播放页。
+                // 朗读面板原本只有按钮没有上下文, 用户点开面板时看不到自己在哪一章、念到哪句。
+                Row(
+                    Modifier.fillMaxWidth().padding(DesignTokens.spacingDefault),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = playerSnapshot.displayTitle.ifBlank { "未在朗读" },
+                            color = colors.primaryText,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = playerSnapshot.currentText.ifBlank { "点播放开始朗读" },
+                            color = colors.secondaryText,
+                            fontSize = 12.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Text(
+                        text = "展开",
+                        color = colors.accent,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clickable { playerExpanded = true }
+                            .padding(horizontal = DesignTokens.spacingMd, vertical = DesignTokens.spacingDefault),
+                    )
+                }
+
                 // 章节/段落播放控制行 (与原版 Row + Text(上一章) + AloudIcon x4 + Text(下一章) 对齐)
                 Row(
                     Modifier.fillMaxWidth(),
@@ -374,6 +414,35 @@ fun ReadAloudDialog(
                 timer = t
                 onSetTimer(t)
             },
+        )
+    }
+
+    if (playerExpanded) {
+        ReadAloudPlayerPanel(
+            isPlaying = isPlaying,
+            initialTimer = timer,
+            initialSpeechRate = speechRate,
+            initialFollowSys = followSys,
+            onPlayPause = onPlayPause,
+            onStop = onStop,
+            onPrevChapter = onPrev,
+            onNextChapter = onNext,
+            onPrevParagraph = onPrevParagraph,
+            onNextParagraph = onNextParagraph,
+            onSetTimer = onSetTimer,
+            onAdjustSpeed = onAdjustSpeed,
+            onFollowSysChange = onFollowSysChange,
+            onOpenCast = {
+                // 先收起朗读面板再开角色配音: 两层都是独立窗口, 叠着开会让返回键先关哪个不确定
+                playerExpanded = false
+                requestDismiss()
+                appNavigator.showOverlay(io.legado.app.ui.root.AppOverlay.Dialog("readAloudCast"))
+            },
+            onOpenSettings = {
+                playerExpanded = false
+                onOpenSettings()
+            },
+            onCollapse = { playerExpanded = false },
         )
     }
 }

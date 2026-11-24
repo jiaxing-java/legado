@@ -50,6 +50,12 @@ class TextToSpeechEngine(private val engineName: String? = null) {
     private var pendingOnError: ((Int) -> Unit)? = null
 
     /**
+     * 待应用的音色（[setVoice] 可能在引擎还没 init 时被调用 —— 多角色在第一段播放前就会
+     * 下发旁白音色，此时实例尚未构造）。init 成功后统一应用一次。
+     */
+    private var pendingVoiceName: String? = null
+
+    /**
      * 确保引擎已初始化。已就绪时同步执行 [block];否则触发异步初始化,初始化成功后执行 [block]。
      *
      * 在初始化过程中重复调用,只保留最后一个 [block]。
@@ -87,6 +93,8 @@ class TextToSpeechEngine(private val engineName: String? = null) {
         }
         progressListener?.let { tts?.setOnUtteranceProgressListener(it) }
         isReady = true
+        // 音色要在第一次 speak 之前落地，否则首段会先用默认音色念出来
+        applyPendingVoice()
         val block = pendingOnReady
         pendingOnReady = null
         pendingOnError = null
@@ -107,6 +115,31 @@ class TextToSpeechEngine(private val engineName: String? = null) {
 
     fun setSpeechRate(rate: Float) {
         tts?.setSpeechRate(rate)
+    }
+
+    /**
+     * 指定音色（`TextToSpeech.voices` 里的 name）；null/空 = 回到引擎默认。
+     *
+     * 找不到该音色时**保持当前音色不动**：多角色里某个角色绑了一个已被卸载引擎的音色，
+     * 退回默认只会让整段听起来没差别，而保留上一次的音色至少不会突然变成另一种嗓子。
+     */
+    fun setVoice(name: String?) {
+        pendingVoiceName = name
+        applyPendingVoice()
+    }
+
+    /** 当前生效的音色名；未就绪或未设置时为 null。 */
+    fun currentVoiceName(): String? = runCatching { tts?.voice?.name }.getOrNull()
+
+    private fun applyPendingVoice() {
+        val instance = tts ?: return
+        val name = pendingVoiceName
+        val target = if (name.isNullOrBlank()) {
+            instance.defaultVoice
+        } else {
+            instance.voices?.firstOrNull { it.name == name }
+        } ?: return
+        runCatching { instance.setVoice(target) }
     }
 
     fun stop() {
@@ -287,6 +320,43 @@ private class AndroidSystemTtsEngine : SystemTtsEngine {
         } finally {
             // NonCancellable: 探测实例是 native 资源, 调用方取消(关弹窗)时也必须 shutdown,
             // 否则可取消的 withContext 会直接抛 CancellationException 跳过清理
+            withContext(NonCancellable + Dispatchers.Main.immediate) {
+                probe.stop()
+                probe.shutdown()
+            }
+        }
+    }
+
+    /**
+     * 列出默认引擎的音色。
+     *
+     * 探测实例用的是**系统默认引擎**：多角色要选的音色必须和朗读时实际用的引擎是同一套
+     * （`TextToSpeech.voices` 只反映构造时那个引擎）。用户若在「系统语音引擎」里指定了
+     * 第三方引擎，这里的目录与它可能不一致 —— 那种情况下 `setVoice` 找不到名字会保持
+     * 默认音色，不会报错也不会静音。
+     */
+    override suspend fun listVoices(): List<SystemTtsVoice> {
+        val probe = createProbe() ?: return emptyList()
+        return try {
+            withContext(Dispatchers.IO) {
+                probe.voices.orEmpty()
+                    .distinctBy { it.name }
+                    .map { voice ->
+                        val language = runCatching { voice.locale?.displayName.orEmpty() }
+                            .getOrDefault("")
+                        val label = if (language.isBlank()) voice.name else "$language · ${voice.name}"
+                        SystemTtsVoice(
+                            id = voice.name,
+                            label = label,
+                            locale = runCatching { voice.locale?.toLanguageTag().orEmpty() }
+                                .getOrDefault(""),
+                            networkRequired = runCatching { voice.isNetworkConnectionRequired }
+                                .getOrDefault(false),
+                        )
+                    }
+                    .sortedBy { it.label.lowercase() }
+            }
+        } finally {
             withContext(NonCancellable + Dispatchers.Main.immediate) {
                 probe.stop()
                 probe.shutdown()

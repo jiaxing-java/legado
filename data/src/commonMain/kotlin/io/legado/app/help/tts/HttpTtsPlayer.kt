@@ -52,8 +52,18 @@ interface HttpTtsPlayer {
     /** 设置播放源 URL 及请求头。 */
     fun setUrl(url: String, headers: Map<String, String>)
 
-    /** 保留完整引擎配置；需要下载音频的平台可处理 POST、编码和登录校验。 */
-    fun setRequest(config: HttpTTS, text: String, speechRate: Int) {
+    /**
+     * 保留完整引擎配置；需要下载音频的平台可处理 POST、编码和登录校验。
+     *
+     * [voice] 非空时把该段的说话人/情绪注入请求变量（`{{speakVoice}}` / `{{speakEmotion}}`），
+     * 源里没写这两个变量就完全无感 —— 多角色只有配上"按发言人取音的源"才听得出差别。
+     */
+    fun setRequest(
+        config: HttpTTS,
+        text: String,
+        speechRate: Int,
+        voice: io.legado.app.help.readaloud.SpeechVoiceRef? = null,
+    ) {
         val request = AnalyzeUrlFactories.create(
             config.url,
             source = config,
@@ -62,6 +72,8 @@ interface HttpTtsPlayer {
             variables = HttpTtsRequest.speakVariables(
                 text,
                 HttpTtsRequest.resolveSpeakSpeed(config, speechRate),
+                speakVoice = voice?.speakerId.orEmpty(),
+                speakEmotion = voice?.emotion.orEmpty(),
             ),
         )
         setUrl(request.url, request.headerMap)

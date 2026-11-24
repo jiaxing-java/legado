@@ -10,6 +10,8 @@ import io.legado.app.ui.compose.preference.preference
 import io.legado.app.ui.compose.preference.preferenceCategory
 import io.legado.app.ui.compose.preference.switchPreference
 import io.legado.app.ui.compose.theme.AppTheme
+import io.legado.app.ui.root.AppOverlay
+import io.legado.app.ui.root.LocalAppNavigator
 import legado.ui.generated.resources.Res
 import legado.ui.generated.resources.pause_read_aloud_while_phone_calls_summary
 import legado.ui.generated.resources.pause_read_aloud_while_phone_calls_title
@@ -60,6 +62,7 @@ fun ReadAloudConfigScreen(
     onTtsEngine: () -> Unit,
     onSysTtsConfig: () -> Unit,
 ) {
+    val navigator = LocalAppNavigator.current
     val titlePausePhoneCalls = stringResource(Res.string.pause_read_aloud_while_phone_calls_title)
     val summaryPausePhoneCalls =
         stringResource(Res.string.pause_read_aloud_while_phone_calls_summary)
@@ -133,6 +136,21 @@ fun ReadAloudConfigScreen(
                 title = titleSysTtsConfig,
                 summary = summarySysTtsConfig,
                 onClick = onSysTtsConfig,
+            )
+
+            // 角色配音：多角色朗读的总开关 + 角色/台词分配入口。
+            // 开关只影响"按段换音色"，关掉后仍按单音色朗读，不会让已有角色丢失。
+            preferenceCategory("角色配音")
+            switchPreference(
+                prefKey = PreferKey.multiRoleCast,
+                title = "多角色朗读",
+                summary = "按台词在角色之间切换音色；关掉则全程用引擎默认音色",
+                defaultValue = false,
+            )
+            preference(
+                title = "角色与台词分配",
+                summary = "给角色绑定音色、逐句指定说话人、按文字命中换声",
+                onClick = { navigator.showOverlay(AppOverlay.Dialog("readAloudCast")) },
             )
 
             preferenceCategory(titleCategorySplit)

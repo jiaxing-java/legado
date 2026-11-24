@@ -70,6 +70,9 @@ class TTSReadAloudService : BaseReadAloudService() {
         }
         engine = created
         initializedEngineName = engineName
+        // 换引擎/重建实例后音色会丢（TextToSpeech 的 voice 是实例状态）：把当前音色补回去，
+        // 否则每次换章重建都会退回默认嗓子，多角色听起来像没生效
+        created.setVoice(pendingVoiceName)
         created.ensureReady(
             block = {
                 if (engine !== created || generation != engineGeneration) return@ensureReady
@@ -123,6 +126,20 @@ class TTSReadAloudService : BaseReadAloudService() {
 
     override fun playStop() {
         engine?.stop()
+    }
+
+    /**
+     * 本段音色（`SpeechVoiceRef.speakerId` → `TextToSpeech.voices[].name`）。
+     *
+     * 存一份当前值：`initEngine` 会重建 `TextToSpeech` 实例，音色是实例状态，重建后要补设。
+     */
+    @Volatile
+    private var pendingVoiceName: String? = null
+
+    override fun applyPlaybackVoice(voice: io.legado.app.help.readaloud.SpeechVoiceRef?) {
+        val target = voice?.speakerId?.takeIf { it.isNotBlank() }
+        pendingVoiceName = target
+        engine?.setVoice(target)
     }
 
     /**

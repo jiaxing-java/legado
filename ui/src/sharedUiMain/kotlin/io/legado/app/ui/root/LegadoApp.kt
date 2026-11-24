@@ -77,6 +77,7 @@ import io.legado.app.ui.bookshelf.toCoverBook
 import io.legado.app.ui.browser.WebViewSheetContent
 import io.legado.app.ui.compose.component.AlertButton
 import io.legado.app.ui.compose.component.AppBottomSheetDialog
+import io.legado.app.ui.compose.component.AppDialogScaffold
 import io.legado.app.ui.compose.component.AppSelectorDialog
 import io.legado.app.ui.compose.component.AppSheetSurface
 import io.legado.app.ui.dialog.TextInputDialog
@@ -859,6 +860,39 @@ fun OverlayContentHost(overlay: AppOverlay) {
     }
 }
 
+/**
+ * 角色配音弹窗：书的身份从**当前阅读实例**取，不靠调用方传参。
+ *
+ * 角色是按 `bookUrl` 存的，而入口有两处（朗读设置、朗读面板），两处都在阅读实例存活时才会
+ * 出现；由弹窗自己取一次，避免每加一个入口就要多拼一次参数。阅读实例不在了就直说原因，
+ * 而不是弹一张空表让人以为功能没做。
+ */
+@Composable
+private fun ReadAloudCastOverlayContent(navigator: AppNavigator) {
+    val readBook = io.legado.app.model.ActiveReadAloudHostPorts.currentReadBook
+    val book = readBook?.bookValue
+    val chapterIndex by (readBook?.durChapterIndex ?: kotlinx.coroutines.flow.flowOf(-1))
+        .collectAsState(initial = -1)
+    if (book == null) {
+        AppDialogScaffold(
+            onDismissRequest = { navigator.dismissOverlay("readAloudCast") },
+            title = "角色配音",
+        ) {
+            Text(
+                text = "请先在阅读页打开一本书。角色与台词分配是按书管理的。",
+                color = AppTheme.colors.primaryText,
+            )
+        }
+    } else {
+        io.legado.app.ui.book.read.cast.ReadAloudCastDialog(
+            bookUrl = book.bookUrl,
+            bookName = book.name,
+            chapterIndex = chapterIndex,
+            onDismissRequest = { navigator.dismissOverlay("readAloudCast") },
+        )
+    }
+}
+
 // 业务 Dialog: 按 key 分流到具体 Composable
 // 规则类 (字典/TXT 目录/屏蔽) 的实现在 RuleOverlayDialogs.kt
 @Composable
@@ -867,6 +901,8 @@ private fun DialogOverlayContent(overlay: AppOverlay.Dialog, navigator: AppNavig
         "photo" -> PhotoOverlayDialogContent(overlay, navigator)
         "group_select" -> GroupSelectDialogContent(overlay, navigator)
         "sourceLogin" -> SourceLoginOverlayContent(overlay, navigator)
+        // 角色配音（多角色朗读）：按当前阅读实例取书名/章节，payload 无需携带任何参数
+        "readAloudCast" -> ReadAloudCastOverlayContent(navigator)
         // 插件虚拟源登录直达: 单扩展自带设置弹窗 (payload=归属扩展包名, 见
         // ExtensionPrefOverlayDialog.kt; 不进插件管理页)
         "extensionPref" -> ExtensionPrefOverlayContent(overlay, navigator)

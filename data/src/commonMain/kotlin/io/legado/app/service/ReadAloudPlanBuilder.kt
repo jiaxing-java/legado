@@ -64,6 +64,12 @@ class ReadAloudPlanBuilder {
         text: String,
         chapterPosition: Int,
         fromLastSpeakable: Boolean,
+        /**
+         * 段级音色解析（可选）。拿到切好的段表，返回与之等长的音色表；返回空表/不提供 =
+         * 全用引擎默认音色。放在这里而不是控制器里，是因为引号序号必须与切段用同一份文本
+         * 坐标，交给调用方（持有 bookUrl 与已排版正文）解析才不会错位。
+         */
+        voiceResolver: ((List<ReadAloudQueue.Segment>) -> List<io.legado.app.help.readaloud.SpeechVoiceRef?>)? = null,
     ): ReadAloudChapterPlan {
         // 分段模式与自定义切分符号在朗读设置里，构建时才读：控制器不持有配置对象，
         // 改设置后下一次 buildPlan 立即生效（旧计划已发出的音频不受影响）。
@@ -79,6 +85,8 @@ class ReadAloudPlanBuilder {
             offsets[i] = segments[i].start
             separators[i] = segments[i].gap
         }
+        // 音色表先按**完整段表**算（引号序号是全章口径），裁剪在下面与段落表同步做
+        val allVoices = voiceResolver?.invoke(segments).orEmpty()
         if (all.isEmpty()) {
             publishGeometry(all, offsets, paragraphBase = 0, firstParagraphSkip = 0, separators = separators)
             return ReadAloudChapterPlan(emptyList())
@@ -103,11 +111,14 @@ class ReadAloudPlanBuilder {
             all.subList(base, all.size).toMutableList()
                 .also { if (skip > 0) it[0] = it[0].substring(skip) }
         }
+        // 音色表与段落表同一裁剪窗口：长度不一致时整体丢弃，宁可退回单音色也不要错位换声
+        val subVoices = if (allVoices.size == all.size) allVoices.subList(base, allVoices.size) else emptyList()
         if (!fromLastSpeakable || sub.isEmpty()) {
             return ReadAloudChapterPlan(
                 sub,
                 chapterPosition = realStartPos,
                 separators = separators.asList().subList(base, separators.size),
+                voices = subVoices,
             )
         }
         val index = sub.indexOfLast { !it.matches(AppPattern.notReadAloudRegex) }
@@ -122,6 +133,7 @@ class ReadAloudPlanBuilder {
             paragraphOffset = 0,
             chapterPosition = chapterPos,
             separators = separators.asList().subList(base, separators.size),
+            voices = subVoices,
         )
     }
 

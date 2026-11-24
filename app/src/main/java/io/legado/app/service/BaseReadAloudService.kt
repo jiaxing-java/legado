@@ -122,9 +122,17 @@ abstract class BaseReadAloudService : BaseService() {
             chapterData = androidChapterData,
             chapterNavigation = ActiveReadAloudHostPorts.chapterNavigation,
             playbackPort = object : ReadAloudPlaybackPort {
-                override fun onPlay(text: String, paragraphIndex: Int, playbackToken: Long) {
+                override fun onPlay(
+                    text: String,
+                    paragraphIndex: Int,
+                    playbackToken: Long,
+                    voice: io.legado.app.help.readaloud.SpeechVoiceRef?,
+                ) {
                     currentPlaybackText = text
                     currentPlaybackToken = playbackToken
+                    // 音色必须在 speak 之前落到本服务的引擎实例上：共享控制器只对非 Android
+                    // 端直接持有引擎，Android 这条路的实例在子类（TTSReadAloudService）里。
+                    applyPlaybackVoice(voice)
                     lifecycleScope.launch(Main) { play() }
                 }
 
@@ -137,6 +145,14 @@ abstract class BaseReadAloudService : BaseService() {
     }
 
     internal val readBook: ReadBookShared? get() = ActiveReadAloudHostPorts.currentReadBook
+
+    /**
+     * 把本段音色交给平台引擎。
+     *
+     * 默认 no-op：只有系统 TTS 子类（[TTSReadAloudService]）有自己的 `TextToSpeech` 实例；
+     * HttpReadAloudService 走播放器，音色已由 `HttpTtsPlayer.setRequest` 注入请求变量。
+     */
+    protected open fun applyPlaybackVoice(voice: io.legado.app.help.readaloud.SpeechVoiceRef?) = Unit
 
     /**
      * 控制器交给本服务的当前段: 文本、令牌、已排版章节。
@@ -209,6 +225,12 @@ abstract class BaseReadAloudService : BaseService() {
     private val androidChapterData = object : ReadAloudChapterDataPort {
         override val chapterCount: Int get() = readBook?.simulatedChapterSize ?: 0
 
+        override val bookUrl: String get() = readBook?.bookValue?.bookUrl.orEmpty()
+
+        // 只有当前章/滑窗内的章能从分页器拿到标题；其余章返回空串由播放页兜底成「第 N 章」
+        override fun chapterTitle(chapterIndex: Int): String =
+            pagedChapterOf(chapterIndex)?.title.orEmpty()
+
         override fun loadChapterPlan(
             chapterIndex: Int,
             chapterPosition: Int,
@@ -219,11 +241,16 @@ abstract class BaseReadAloudService : BaseService() {
             textChapter = chapter
             readAloudByPage = AppConfig.readAloudByPage
             // 段落计划与 shared 朗读宿主共用同一构建器 (安卓获得段界 skip 钳制)
-            return planBuilder.buildPlan(
-                chapter.getNeedReadAloud(0, readAloudByPage, 0),
-                chapterPosition,
-                fromLastSpeakable,
-            )
+            val text = chapter.getNeedReadAloud(0, readAloudByPage, 0)
+            return planBuilder.buildPlan(text, chapterPosition, fromLastSpeakable) { segments ->
+                // 段级音色: 未开多角色/书里没建角色时返回空表, 计划按单音色走
+                io.legado.app.help.readaloud.ReadAloudCastPlanner.voicesFor(
+                    bookUrl = bookUrl,
+                    chapterIndex = chapterIndex,
+                    chapterText = text,
+                    segments = segments,
+                )
+            }
         }
 
         override fun isChapterPaged(chapterIndex: Int): Boolean =

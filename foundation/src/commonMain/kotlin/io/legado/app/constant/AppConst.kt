@@ -42,6 +42,17 @@ object AppConst {
         PAGE("page"),
         SPEAK_TEXT("speakText"),
         SPEAK_SPEED("speakSpeed"),
+
+        /**
+         * 当前段的发言人标识（`read_aloud_voices.speakerId`），多角色朗读时由角色决定。
+         *
+         * 外部 HTTP TTS 的 URL/body 里用 `{{speakVoice}}` 取；单音色时是空串，
+         * 沿用源自身配置的默认发言人。
+         */
+        SPEAK_VOICE("speakVoice"),
+
+        /** 当前段的情绪标记（`chapter_speech_segments.emotion`），空串 = 不指定。 */
+        SPEAK_EMOTION("speakEmotion"),
         PARAGRAPH_INDEX("paragraphIndex"),
         SORT("sort"),
         REVIEW_ID("reviewId"),

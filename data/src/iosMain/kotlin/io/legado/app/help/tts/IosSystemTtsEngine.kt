@@ -10,6 +10,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.useContents
 import platform.AVFAudio.AVSpeechBoundary
+import platform.AVFAudio.AVSpeechSynthesisVoice
 import platform.AVFAudio.AVSpeechSynthesizer
 import platform.AVFAudio.AVSpeechSynthesizerDelegateProtocol
 import platform.AVFAudio.AVSpeechUtterance
@@ -240,10 +241,70 @@ class IosSystemTtsEngine : SystemTtsEngine {
                 AVSpeechUtteranceMinimumSpeechRate,
                 AVSpeechUtteranceMaximumSpeechRate
             )
+            // 音色是 utterance 的属性（不是 synthesizer 的），逐段指定才能多角色混播；
+            // 找不到标识时保持系统默认，不阻断朗读
+            resolvedVoice()?.let { voice = it }
         }
         bindId(utterance, utteranceId)
         synthesizer.speakUtterance(utterance)
         return true
+    }
+
+    // ===== 音色 =====
+
+    /** 当前选中的音色标识（`AVSpeechSynthesisVoice.identifier`）；null = 系统默认。 */
+    @Volatile
+    private var voiceIdentifier: String? = null
+
+    /**
+     * 本机可用音色。
+     *
+     * iOS 的音色是系统级共享资源（含「增强」「精品」等下载音色），直接把 `identifier` 当
+     * [SystemTtsVoice.id] 存进音色目录即可，换引擎不影响这个标识。
+     */
+    override suspend fun listVoices(): List<SystemTtsVoice> {
+        val voices = AVSpeechSynthesisVoice.speechVoices()
+        return voices.mapNotNull { item ->
+            val voice = item as? AVSpeechSynthesisVoice ?: return@mapNotNull null
+            val identifier = voice.identifier
+            if (identifier.isBlank()) return@mapNotNull null
+            SystemTtsVoice(
+                id = identifier,
+                label = voice.name,
+                locale = voice.language,
+            )
+        }.sortedBy { it.label }
+    }
+
+    override fun setVoice(speakerId: String?) {
+        voiceIdentifier = speakerId?.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * 列出系统全部音色。
+     *
+     * iOS 的音色是**系统级**的（与引擎无关），因此不需要像 Android 那样探测实例：
+     * `speechVoices()` 直接给出当前设备可用列表（含未下载的高质量音色，选中后系统会要求下载）。
+     */
+    override suspend fun listVoices(): List<SystemTtsVoice> = runCatching {
+        AVSpeechSynthesisVoice.speechVoices()
+            .mapNotNull { it as? AVSpeechSynthesisVoice }
+            .map { voice ->
+                val language = voice.language
+                SystemTtsVoice(
+                    id = voice.identifier,
+                    label = "$language · ${voice.name}",
+                    locale = language,
+                )
+            }
+            .distinctBy { it.id }
+            .sortedBy { it.label.lowercase() }
+    }.getOrDefault(emptyList())
+
+    /** 标识 → 音色对象；未设置或系统里已不存在时返回 null（按默认音色念）。 */
+    private fun resolvedVoice(): AVSpeechSynthesisVoice? {
+        val id = voiceIdentifier ?: return null
+        return runCatching { AVSpeechSynthesisVoice.voiceWithIdentifier(id) }.getOrNull()
     }
 
     // ===== pause / resume / stop / shutdown =====

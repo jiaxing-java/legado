@@ -39,6 +39,14 @@ object PreferKey {
     const val ttsEngine = "appTtsEngine"
     const val ttsFollowSys = "ttsFollowSys"
     const val ttsSpeechRate = "ttsSpeechRate"
+
+    /**
+     * 系统 TTS 音色（`read_aloud_voices.id`，空 = 引擎默认）。
+     *
+     * 与 [ttsEngine] 分开存：引擎是"用哪家的合成器"，音色是"这家里的哪把嗓子"。
+     * 换引擎时旧音色 id 自然失效（查不到就退回默认），不需要额外的清理动作。
+     */
+    const val ttsVoice = "ttsVoice"
     const val prevKeys = "prevKeyCodes"
     const val nextKeys = "nextKeyCodes"
     const val showDiscovery = "showDiscovery"

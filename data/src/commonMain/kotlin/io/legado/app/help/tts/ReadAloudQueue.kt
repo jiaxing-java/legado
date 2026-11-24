@@ -32,6 +32,13 @@ class ReadAloudQueue {
         val readAloudNumber: Int = 0,
         val paragraphStartPos: Int = 0,
         val separators: List<Int> = emptyList(),
+        /**
+         * 与 [contentList] 等长的段级音色表；空表 = 全部用引擎默认音色。
+         *
+         * 与段落表同源发布：段下标、段文本、该段音色必须一次取到同一版本，否则换章瞬间会把
+         * 上一章的音色配给新一章的第一段。
+         */
+        val voices: List<io.legado.app.help.readaloud.SpeechVoiceRef?> = emptyList(),
     ) {
 
         /** 当前段文本; 空表或下标越出段表时为 null (此刻章内已无可朗读段)。 */
@@ -39,6 +46,10 @@ class ReadAloudQueue {
 
         /** 第 [index] 段之后的原始分隔符长度(缺省按 1)。 */
         fun separatorAt(index: Int): Int = separators.getOrNull(index) ?: 1
+
+        /** 第 [index] 段该用的音色; 未配置多角色时恒为 null。 */
+        fun voiceAt(index: Int): io.legado.app.help.readaloud.SpeechVoiceRef? =
+            voices.getOrNull(index)
     }
 
     private val state = atomic(Snapshot())
@@ -58,12 +69,14 @@ class ReadAloudQueue {
         readAloudNumber: Int = 0,
         paragraphStartPos: Int = 0,
         separators: List<Int> = emptyList(),
+        voices: List<io.legado.app.help.readaloud.SpeechVoiceRef?> = emptyList(),
     ) {
         val index = nowSpeak.coerceIn(0, contentList.lastIndex.coerceAtLeast(0))
         state.value = Snapshot(
             contentList = contentList,
             nowSpeak = index,
             separators = separators,
+            voices = voices,
             readAloudNumber = readAloudNumber.coerceAtLeast(0),
             paragraphStartPos = paragraphStartPos.coerceIn(
                 0,
@@ -172,6 +185,15 @@ class ReadAloudQueue {
         }
     }
 
+    /**
+     * 一个待朗读片段及其在原文里的位置。
+     *
+     * @param text 片段文本（原文切片，未做任何改写）
+     * @param start 片段在章节朗读文本中的起始字符下标
+     * @param gap 片段之后到下一片段之间的原始字符数；最后一段按 1 计（与旧行为一致）
+     */
+    data class Segment(val text: String, val start: Int, var gap: Int)
+
     companion object {
 
         /** 分段模式：按段落（\n）切。 */
@@ -185,15 +207,6 @@ class ReadAloudQueue {
 
         /** 句读后仍属于本段的收尾符号（引号/括号），避免把右引号甩到下一段开头。 */
         private const val TRAILING_MARKS = "”’』」）)】》\"'"
-
-        /**
-         * 一个待朗读片段及其在原文里的位置。
-         *
-         * @param text 片段文本（原文切片，未做任何改写）
-         * @param start 片段在章节朗读文本中的起始字符下标
-         * @param gap 片段之后到下一片段之间的原始字符数；最后一段按 1 计（与旧行为一致）
-         */
-        data class Segment(val text: String, val start: Int, var gap: Int)
 
         /**
          * 按段落/句读把章节文本切成片段，并给出每个片段的真实位置。

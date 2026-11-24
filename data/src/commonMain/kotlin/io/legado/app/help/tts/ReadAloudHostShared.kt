@@ -377,13 +377,26 @@ abstract class ReadAloudHostShared(
     private val chapterData = object : ReadAloudChapterDataPort {
         override val chapterCount: Int get() = ports.chapterData.chapterCount
 
+        override val bookUrl: String get() = ports.bookUrl
+
+        override fun chapterTitle(chapterIndex: Int): String =
+            ports.chapterData.chapterTitle(chapterIndex)
+
         override fun loadChapterPlan(
             chapterIndex: Int,
             chapterPosition: Int,
             fromLastSpeakable: Boolean,
         ): ReadAloudChapterPlan? {
             val text = chapterText(chapterIndex) ?: return null
-            return planBuilder.buildPlan(text, chapterPosition, fromLastSpeakable)
+            return planBuilder.buildPlan(text, chapterPosition, fromLastSpeakable) { segments ->
+                // 段级音色: 未开多角色/书里没建角色时返回空表, 计划按单音色走
+                io.legado.app.help.readaloud.ReadAloudCastPlanner.voicesFor(
+                    bookUrl = bookUrl,
+                    chapterIndex = chapterIndex,
+                    chapterText = text,
+                    segments = segments,
+                )
+            }
         }
 
         override fun isChapterPaged(chapterIndex: Int): Boolean =
@@ -416,6 +429,9 @@ data class ReadAloudChapterUpdate(
 interface ReadAloudChapterDataHostPort {
     val chapterCount: Int
     fun chapterText(chapterIndex: Int): String?
+
+    /** 章节标题；空串 = 该端拿不到（播放页退化为「第 N 章」）。 */
+    fun chapterTitle(chapterIndex: Int): String = ""
 }
 
 interface ReadAloudPositionPublisher {
@@ -432,6 +448,14 @@ interface ReadAloudMediaControlPort {
 /** 页面宿主能力集合；业务宿主只依赖这些端口，不反查活动 ViewModel/UI 总线。 */
 interface ReadAloudHostPorts {
     val chapterData: ReadAloudChapterDataHostPort
+
+    /**
+     * 当前朗读的书（`Book.bookUrl`）；空串 = 该端拿不到，多角色降级为单音色。
+     *
+     * 由活动阅读页在 attach 时提供，和章节正文同源 —— 朗读换书时两者必须一起变，
+     * 否则会把上一本书的角色分配给新书。
+     */
+    val bookUrl: String get() = ""
     val chapterNavigation: io.legado.app.service.ReadAloudChapterNavigationPort
     val positionPublisher: ReadAloudPositionPublisher
     val mediaControl: ReadAloudMediaControlPort

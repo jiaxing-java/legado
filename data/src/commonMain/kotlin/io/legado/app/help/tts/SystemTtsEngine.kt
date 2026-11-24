@@ -12,6 +12,24 @@ import kotlinx.atomicfu.locks.synchronized
 data class SystemTtsEngineInfo(val id: String, val label: String)
 
 /**
+ * 一个引擎下的具体音色。
+ *
+ * [id] 是该引擎的原生标识（Android `Voice.name`、iOS `AVSpeechSynthesisVoice.identifier`），
+ * 写进 `read_aloud_voices.speakerId`，朗读时原样回传给 [SystemTtsEngine.setVoice]。
+ *
+ * [label] 只是展示名：Android 的 `Voice.name` 形如 `zh-cn-x-ccc-local`，直接暴露给用户
+ * 无法辨认，故由平台侧拼出「中文（中国）· 女声」这类可读文本。
+ */
+data class SystemTtsVoice(
+    val id: String,
+    val label: String,
+    /** BCP-47 语言标签，空 = 平台没给。 */
+    val locale: String = "",
+    /** 是否需要联网（Android `Voice.isNetworkConnectionRequired`）。 */
+    val networkRequired: Boolean = false,
+)
+
+/**
  * 系统 TTS 引擎抽象接口（KMP 版）。
  *
  * 各平台只负责单段播放与平台事件适配；业务通过订阅 token 独立持有监听器，不能互相覆盖。
@@ -80,6 +98,23 @@ interface SystemTtsEngine {
      * Android 端 `TextToSpeechEngine(engineName)` 消费；因此这里**不要**做任何改写。
      */
     suspend fun listEngines(): List<SystemTtsEngineInfo> = emptyList()
+
+    /**
+     * 列出当前引擎可用的音色。
+     *
+     * 与 [listEngines] 同一条原则：有真实枚举能力的平台覆写，其余返回空表即"没有挑音色的
+     * 语义"，UI 据此隐藏音色分组而不是摆一个空列表。
+     */
+    suspend fun listVoices(): List<SystemTtsVoice> = emptyList()
+
+    /**
+     * 指定下一段朗读使用的音色（[speakerId] 来自 [SystemTtsVoice.id]）。
+     *
+     * 是**实例状态**：设置后对所有后续 [speak] 生效，直到再次调用或实例被换掉。传空/null
+     * 表示回到引擎默认音色。平台不支持时静默忽略 —— 调用方不该为"这个引擎没有音色概念"
+     * 付一次异常开销。
+     */
+    fun setVoice(speakerId: String?) = Unit
 }
 
 /** 不透明监听订阅 token；身份即注册表 key，不携带 previous-listener 栈。 */
